@@ -9,7 +9,8 @@ Everything is synthetic demo data. The styling uses a similar teal palette but n
 | Tab | What it demonstrates |
 |---|---|
 | **Overview** | The metrics we assume the platform already shows (orders, weight, separation rate, CO₂, weight by stream) plus new ones: missed-pickup rate by weekday and containers at overflow risk. |
-| **Planner** | 14-day pickup calendar. Dashed ✦ chips are suggestions from the agent; click to review and apply. Manual cancel / move / add with the "free ≥ 1 day before" rule. Fill-level forecast chart per container. |
+| **Planner** | Month view (rooster-style) with square day cells and month navigation. A slim **+ Add pickup** bar sits above the calendar. Dashed ✦ chips are agent suggestions; click any chip for details, apply, cancel or move ("free ≥ 1 day before" rule); "+N more" opens the full day. |
+| **Forecast** | Large fill-level chart per container: sensor history, forecast and pickups. |
 | **AI agent** | Prioritised suggestions with the reasoning and impact (pickups, €, CO₂). Apply, dismiss or apply all; activity log. |
 | **Data & assumptions** | Assumptions stated up front, sensor simulator (move a slider and watch the agent react), and a roadmap of new data collection (IoT sensors, weigh-at-pickup, composition scanning, calendar/behaviour, service events) with fallbacks if the data does not exist. |
 

@@ -1,6 +1,6 @@
 /* app.js — UI for the SmartPlan prototype (plain JS, no build step) */
 
-const ui = { tab: 'overview', loc: '', cid: null, modal: null };
+const ui = { tab: 'overview', loc: '', cid: null, modal: null, month: null, addDate: null };
 const $ = s => document.querySelector(s);
 const eur = n => (n < 0 ? '−' : n > 0 ? '+' : '') + '€' + Math.abs(Math.round(n));
 const kg = n => Math.round(n).toLocaleString('en-GB') + ' kg';
@@ -92,33 +92,60 @@ function viewOverview() {
 
 function mondayOf(d) { return addDays(d, -((d.getDay() + 6) % 7)); }
 
+const STREAM_SHORT = { residual: 'Residual', paper: 'Paper', glass: 'Glass', organic: 'Organic', pmd: 'Plastic' };
+const cityOf = c => Model.loc(c.loc).name.split(' – ')[0];
+
+function pkChip(p, long) {
+  const c = Model.cont(p.cid), sim = Model.simulate(c).find(x => x.date === p.date);
+  const fill = sim ? ' · ~' + Math.round(Math.min(sim.fill, 100)) + '% full' : '';
+  const label = long ? STREAMS[c.stream].label + ' · ' + cityOf(c) + (p.status === 'cancelled' ? ' · cancelled' : fill)
+                     : STREAM_SHORT[c.stream] + ' ' + cityOf(c).slice(0, 3);
+  return '<button class="pk ' + p.status + '" style="--c:' + STREAMS[c.stream].color + '" title="' + Model.contLabel(c) + fill + '" data-act="selpk" data-cid="' + p.cid + '" data-date="' + p.date + '">' + label + '</button>';
+}
+function ghostChip(g, long) {
+  const c = Model.cont(g.cid);
+  return '<button class="pk ghost" style="--c:' + STREAMS[c.stream].color + '" title="Suggested by the agent: ' + g.rec.title.replace(/"/g, '') + '" data-act="selghost" data-id="' + g.rec.id + '">✦ ' +
+    (long ? STREAMS[c.stream].label + ' · ' + cityOf(c) + ' · suggested' : STREAM_SHORT[c.stream] + ' ' + cityOf(c).slice(0, 3)) + '</button>';
+}
+function dayItems(date, cs, ghosts) {
+  const key = iso(date);
+  const items = key < iso(Model.today) ? [] : Model.pickups(date, 1).filter(p => cs.find(c => c.id === p.cid));
+  return { ghosts: ghosts.filter(g => g.date === key), pickups: items };
+}
+
 function viewPlanner() {
   const cs = containersInView();
   const recs = viewRecs();
   const ghosts = [];
   recs.filter(r => r.ops).forEach(r => r.ops.filter(o => o.op === 'add').forEach(o => ghosts.push({ rec: r, cid: o.cid, date: o.date })));
-  const start = mondayOf(Model.today), todayKey = iso(Model.today);
+  if (!ui.month) ui.month = { y: Model.today.getFullYear(), m: Model.today.getMonth() };
+  const first = new Date(ui.month.y, ui.month.m, 1);
+  const last = new Date(ui.month.y, ui.month.m + 1, 0);
+  const start = mondayOf(first);
+  const weeks = Math.ceil(((last - start) / 864e5 + 1) / 7);
+  const todayKey = iso(Model.today);
   const head = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => '<div class="wk">' + d + '</div>').join('');
   let cells = '';
-  for (let i = 0; i < 21; i++) {
-    const date = addDays(start, i), key = iso(date), past = key < todayKey;
-    const items = past ? [] : Model.pickups(date, 1).filter(p => cs.find(c => c.id === p.cid));
-    const chips = items.map(p => {
-      const c = Model.cont(p.cid), sim = Model.simulate(c).find(x => x.date === key);
-      return '<button class="pk ' + p.status + '" style="--c:' + STREAMS[c.stream].color + '" data-act="selpk" data-cid="' + p.cid + '" data-date="' + key + '">' +
-        STREAMS[c.stream].label + '<small>' + Model.loc(c.loc).name.split(' – ')[0] + (p.status === 'cancelled' ? ' · cancelled' : sim ? ' · ~' + Math.round(Math.min(sim.fill, 100)) + '% full' : '') + '</small></button>';
-    }).join('');
-    const gh = ghosts.filter(g => g.date === key).map(g => {
-      const c = Model.cont(g.cid);
-      return '<button class="pk ghost" style="--c:' + STREAMS[c.stream].color + '" data-act="selghost" data-id="' + g.rec.id + '">✦ ' + STREAMS[c.stream].label + '<small>Agent suggests · ' + Model.loc(c.loc).name.split(' – ')[0] + '</small></button>';
-    }).join('');
-    const label = date.getDate() + (date.getDate() === 1 || i === 0 ? ' ' + date.toLocaleDateString('en-GB', { month: 'short' }) : '');
-    cells += '<div class="day ' + (key === todayKey ? 'today ' : '') + (past ? 'past' : '') + '"><div class="dh"><b>' + label + '</b>' +
-      (past ? '' : '<button class="plus" title="Add pickup on this day" data-act="openadd" data-date="' + key + '">+</button>') + '</div>' + chips + gh + '</div>';
+  for (let i = 0; i < weeks * 7; i++) {
+    const date = addDays(start, i), key = iso(date), past = key < todayKey, other = date.getMonth() !== ui.month.m;
+    const di = dayItems(date, cs, ghosts);
+    const all = [...di.ghosts.map(g => ghostChip(g)), ...di.pickups.map(p => pkChip(p))];
+    const shown = all.slice(0, 3).join('');
+    const more = all.length > 3 ? '<button class="more" data-act="selday" data-date="' + key + '">+' + (all.length - 3) + ' more</button>' : '';
+    cells += '<div class="day ' + (key === todayKey ? 'today ' : '') + (past ? 'past ' : '') + (other ? 'other' : '') + '"><div class="dh"><b>' + date.getDate() + '</b>' +
+      (past ? '' : '<button class="plus" title="Add pickup on this day" data-act="setadd" data-date="' + key + '">+</button>') + '</div>' + shown + more + '</div>';
   }
-  return '<div class="title-row"><div><h2>Planner</h2><p class="sub">Dashed ✦ = suggested by the agent. Click any pickup or suggestion for details.</p></div>' +
-    '<button class="fab" title="Add an extra pickup" data-act="openadd">+</button></div>' +
-    '<div class="cal big">' + head + cells + '</div>' + plannerModal(cs);
+  const opts = cs.map(c => '<option value="' + c.id + '">' + Model.contLabel(c) + '</option>').join('');
+  const monthName = first.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  const addDate = ui.addDate || iso(addDays(Model.today, 2));
+  return '<h2>Planner</h2>' +
+    '<div class="addbar"><span class="ab-title"><span class="ab-plus">+</span> Add pickup</span><select id="addCid">' + opts + '</select>' +
+    '<input type="date" id="addDate" min="' + todayKey + '" value="' + addDate + '"><button class="btn" data-act="addpk">Add</button>' +
+    '<span class="small">Free ≥ ' + ASSUMPTIONS.freeRescheduleDays + ' day ahead, else €' + ASSUMPTIONS.sameDayFee + ' fee</span></div>' +
+    '<div class="month-bar"><button class="nav" data-act="monthprev" aria-label="Previous month">‹</button><button class="nav" data-act="monthnext" aria-label="Next month">›</button>' +
+    '<b class="month-name">' + monthName + '</b><button class="btn sec" data-act="monthtoday">Today</button>' +
+    '<div class="legend" style="margin:0 0 0 auto">' + Object.entries(STREAMS).map(([k, v]) => '<span><i style="background:' + v.color + '"></i>' + STREAM_SHORT[k] + '</span>').join('') + '<span>✦ agent suggestion</span></div></div>' +
+    '<div class="cal month">' + head + cells + '</div>' + plannerModal(cs);
 }
 
 function plannerModal(cs) {
@@ -145,6 +172,13 @@ function plannerModal(cs) {
         : '<div class="row"><button class="btn danger" data-act="cancelpk" data-cid="' + m.cid + '" data-date="' + m.date + '">Cancel pickup</button>' +
           '<span class="small">or move to</span><input type="date" id="moveDate" min="' + iso(Model.today) + '" value="' + iso(addDays(parseIso(m.date), 1)) + '">' +
           '<button class="btn sec" data-act="movepk" data-cid="' + m.cid + '" data-date="' + m.date + '">Move</button></div>');
+  } else if (m.kind === 'day') {
+    const ghosts = [];
+    viewRecs().filter(r => r.ops).forEach(r => r.ops.filter(o => o.op === 'add').forEach(o => ghosts.push({ rec: r, cid: o.cid, date: o.date })));
+    const di = dayItems(parseIso(m.date), cs, ghosts);
+    body = close + '<h3>' + fmtDate(m.date) + '</h3><div class="daylist">' +
+      (di.ghosts.map(g => ghostChip(g, true)).join('') + di.pickups.map(p => pkChip(p, true)).join('') || '<p class="small">No pickups planned.</p>') +
+      '</div><button class="btn sec" data-act="setadd" data-date="' + m.date + '">+ Add a pickup on this day</button>';
   } else if (m.kind === 'add') {
     const opts = cs.map(c => '<option value="' + c.id + '">' + Model.contLabel(c) + '</option>').join('');
     body = close + '<h3>Add an extra pickup</h3><div class="form"><label>Container<select id="addCid">' + opts + '</select></label>' +
@@ -239,7 +273,12 @@ function init() {
       });
     } else if (act === 'selpk') ui.modal = { kind: 'pk', cid: d.cid, date: d.date };
     else if (act === 'selghost') ui.modal = { kind: 'ghost', id: d.id };
-    else if (act === 'openadd') ui.modal = { kind: 'add', date: d.date || iso(addDays(Model.today, 2)) };
+    else if (act === 'selday') ui.modal = { kind: 'day', date: d.date };
+    else if (act === 'setadd') { ui.addDate = d.date; ui.modal = null; }
+    else if (act === 'monthprev' || act === 'monthnext') {
+      const dt = new Date(ui.month.y, ui.month.m + (act === 'monthnext' ? 1 : -1), 1);
+      ui.month = { y: dt.getFullYear(), m: dt.getMonth() };
+    } else if (act === 'monthtoday') ui.month = null;
     else if (act === 'cancelpk') { Model.manual('cancel', d.cid, d.date); ui.modal = null; }
     else if (act === 'restore') { Model.manual('add', d.cid, d.date); ui.modal = null; }
     else if (act === 'movepk') {
@@ -248,7 +287,10 @@ function init() {
       ui.modal = null;
     } else if (act === 'addpk') {
       const cid = $('#addCid').value, date = $('#addDate').value;
-      if (cid && date) { Model.manual('add', cid, date); ui.modal = null; }
+      if (cid && date) {
+        Model.manual('add', cid, date); ui.modal = null; ui.addDate = null;
+        const dd = parseIso(date); ui.month = { y: dd.getFullYear(), m: dd.getMonth() };
+      }
     }
     render();
   });

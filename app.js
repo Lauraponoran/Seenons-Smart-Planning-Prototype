@@ -1,6 +1,6 @@
 /* app.js — UI for the SmartPlan prototype (plain JS, no build step) */
 
-const ui = { tab: 'overview', loc: '', cid: null, sel: null };
+const ui = { tab: 'overview', loc: '', cid: null, modal: null };
 const $ = s => document.querySelector(s);
 const eur = n => (n < 0 ? '−' : n > 0 ? '+' : '') + '€' + Math.abs(Math.round(n));
 const kg = n => Math.round(n).toLocaleString('en-GB') + ' kg';
@@ -30,11 +30,11 @@ function recCard(r) {
     '<button class="btn sec" data-act="dismiss" data-id="' + r.id + '">Dismiss</button></div></div>';
 }
 
-function chartSvg(c) {
+function chartSvg(c, big) {
   const hist = Model.hist.fills[c.id].slice(-15);
   if (Model.fillOverride[c.id] != null) hist[hist.length - 1] = { ...hist[hist.length - 1], fill: Model.fillOverride[c.id] };
   const fc = Model.simulate(c);
-  const W = 720, H = 230, L = 36, R = 10, T = 10, B = 26, MAXY = 110;
+  const W = big ? 960 : 720, H = big ? 420 : 230, L = 40, R = 12, T = 12, B = 28, MAXY = 110;
   const x = i => L + (i + 14) / 28 * (W - L - R);
   const y = v => T + (1 - Math.min(v, MAXY) / MAXY) * (H - T - B);
   let hp = hist.map((p, i) => (i ? 'L' : 'M') + x(i - 14).toFixed(1) + ' ' + y(p.fill).toFixed(1)).join(' ');
@@ -54,7 +54,7 @@ function chartSvg(c) {
     '<line x1="' + x(0) + '" x2="' + x(0) + '" y1="' + T + '" y2="' + (H - B) + '" stroke="#9db5b1"/>' +
     '<path d="' + hp + '" fill="none" stroke="#6b7f7b" stroke-width="2"/>' +
     '<path d="' + fp + '" fill="none" stroke="#0f9d8a" stroke-width="2.5" stroke-dasharray="6 4"/>' + marks + overs + xl + '</svg>' +
-    '<div class="legend"><span><i style="background:#6b7f7b"></i>Sensor history</span><span><i style="background:#0f9d8a"></i>Forecast</span><span>● pickup (green = added)</span><span style="color:#d64545">○ predicted overflow</span></div>';
+    '<div class="legend"><span><i style="background:#6b7f7b"></i>Sensor history</span><span><i style="background:#0f9d8a"></i>Forecast</span><span>● pickups</span></div>';
 }
 
 /* ---------------- views ---------------- */
@@ -90,56 +90,79 @@ function viewOverview() {
     '<h3>Top suggestions from the agent</h3>' + top;
 }
 
+function mondayOf(d) { return addDays(d, -((d.getDay() + 6) % 7)); }
+
 function viewPlanner() {
   const cs = containersInView();
-  if (!ui.cid || !cs.find(c => c.id === ui.cid)) ui.cid = cs[0].id;
   const recs = viewRecs();
   const ghosts = [];
   recs.filter(r => r.ops).forEach(r => r.ops.filter(o => o.op === 'add').forEach(o => ghosts.push({ rec: r, cid: o.cid, date: o.date })));
+  const start = mondayOf(Model.today), todayKey = iso(Model.today);
+  const head = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => '<div class="wk">' + d + '</div>').join('');
   let cells = '';
-  for (let d = 0; d < 14; d++) {
-    const date = addDays(Model.today, d), key = iso(date);
-    const items = Model.pickups(date, 1).filter(p => cs.find(c => c.id === p.cid));
+  for (let i = 0; i < 21; i++) {
+    const date = addDays(start, i), key = iso(date), past = key < todayKey;
+    const items = past ? [] : Model.pickups(date, 1).filter(p => cs.find(c => c.id === p.cid));
     const chips = items.map(p => {
       const c = Model.cont(p.cid), sim = Model.simulate(c).find(x => x.date === key);
-      const sel = ui.sel && ui.sel.kind === 'pk' && ui.sel.cid === p.cid && ui.sel.date === key;
-      return '<button class="pk ' + p.status + (sel ? ' sel' : '') + '" style="--c:' + STREAMS[c.stream].color + '" data-act="selpk" data-cid="' + p.cid + '" data-date="' + key + '">' +
+      return '<button class="pk ' + p.status + '" style="--c:' + STREAMS[c.stream].color + '" data-act="selpk" data-cid="' + p.cid + '" data-date="' + key + '">' +
         STREAMS[c.stream].label + '<small>' + Model.loc(c.loc).name.split(' – ')[0] + (p.status === 'cancelled' ? ' · cancelled' : sim ? ' · ~' + Math.round(Math.min(sim.fill, 100)) + '% full' : '') + '</small></button>';
     }).join('');
     const gh = ghosts.filter(g => g.date === key).map(g => {
       const c = Model.cont(g.cid);
       return '<button class="pk ghost" style="--c:' + STREAMS[c.stream].color + '" data-act="selghost" data-id="' + g.rec.id + '">✦ ' + STREAMS[c.stream].label + '<small>Agent suggests · ' + Model.loc(c.loc).name.split(' – ')[0] + '</small></button>';
     }).join('');
-    cells += '<div class="day ' + (d === 0 ? 'today' : '') + '"><div class="dh"><b>' + fmtDate(date) + '</b>' + (d === 0 ? '<span>today</span>' : '') + '</div>' + chips + gh + '</div>';
+    const label = date.getDate() + (date.getDate() === 1 || i === 0 ? ' ' + date.toLocaleDateString('en-GB', { month: 'short' }) : '');
+    cells += '<div class="day ' + (key === todayKey ? 'today ' : '') + (past ? 'past' : '') + '"><div class="dh"><b>' + label + '</b>' +
+      (past ? '' : '<button class="plus" title="Add pickup on this day" data-act="openadd" data-date="' + key + '">+</button>') + '</div>' + chips + gh + '</div>';
   }
-  let panel = '<p class="small">Select a pickup or an agent suggestion in the calendar to see details and change it.</p>';
-  const s = ui.sel;
-  if (s && s.kind === 'ghost') {
-    const r = allRecs().find(x => x.id === s.id);
-    if (r) panel = recCard(r);
-  } else if (s && s.kind === 'pk') {
-    const c = Model.cont(s.cid), st = Model.status(c, parseIso(s.date)), sim = Model.simulate(c).find(x => x.date === s.date);
-    const free = Model.isFree(s.date), mr = Model.missRate(c.loc, parseIso(s.date).getDay());
+  return '<div class="title-row"><div><h2>Planner</h2><p class="sub">Dashed ✦ = suggested by the agent. Click any pickup or suggestion for details.</p></div>' +
+    '<button class="fab" title="Add an extra pickup" data-act="openadd">+</button></div>' +
+    '<div class="cal big">' + head + cells + '</div>' + plannerModal(cs);
+}
+
+function plannerModal(cs) {
+  const m = ui.modal;
+  if (!m) return '';
+  const close = '<button class="x" data-act="closemodal" data-x="1" aria-label="Close">×</button>';
+  let body = '';
+  if (m.kind === 'ghost') {
+    const r = allRecs().find(x => x.id === m.id);
+    if (!r) return '';
+    body = close + '<span class="badge ' + r.severity + '">' + r.severity + '</span> <span class="badge">' + typeLabel[r.type] + '</span>' +
+      '<h3 style="margin-top:8px">' + r.title + '</h3><p>' + r.reason + '</p><div>' + impactChips(r) + '</div>' +
+      '<div class="acts" style="margin-top:12px"><button class="btn" data-act="apply" data-id="' + r.id + '">' + (r.ops ? 'Apply to schedule' : 'Create task') + '</button>' +
+      '<button class="btn sec" data-act="dismiss" data-id="' + r.id + '">Dismiss</button></div>';
+  } else if (m.kind === 'pk') {
+    const c = Model.cont(m.cid), st = Model.status(c, parseIso(m.date)), sim = Model.simulate(c).find(x => x.date === m.date);
+    const free = Model.isFree(m.date), mr = Model.missRate(c.loc, parseIso(m.date).getDay());
     const feeNote = free ? '<span class="chip good">Free to change (≥ 1 day ahead)</span>' : '<span class="chip bad">Less than 1 day ahead — €' + ASSUMPTIONS.sameDayFee + ' fee</span>';
-    panel = '<h3>' + Model.contLabel(c) + ' · ' + fmtDate(s.date) + '</h3>' +
-      '<p>Status: <b>' + st + '</b>' + (sim ? ' · forecast fill at pickup ~<b>' + Math.round(Math.min(sim.fill, 100)) + '%</b>' : '') +
-      ' · historic miss rate on this weekday: <b>' + pct(mr.rate) + '</b> (' + mr.n + ' pickups)</p><p>' + feeNote + '</p>' +
+    body = close + '<h3>' + Model.contLabel(c) + '</h3><p>' + fmtDate(m.date) + ' · status <b>' + st + '</b>' +
+      (sim ? ' · forecast fill ~<b>' + Math.round(Math.min(sim.fill, 100)) + '%</b>' : '') +
+      '<br>Missed on this weekday historically: <b>' + pct(mr.rate) + '</b> (' + mr.n + ' pickups)</p><p>' + feeNote + '</p>' +
       (st === 'cancelled'
-        ? '<button class="btn" data-act="restore" data-cid="' + s.cid + '" data-date="' + s.date + '">Restore pickup</button>'
-        : '<button class="btn danger" data-act="cancelpk" data-cid="' + s.cid + '" data-date="' + s.date + '">Cancel this pickup</button> ' +
-          '<span class="small">or move to</span> <input type="date" id="moveDate" min="' + iso(Model.today) + '" value="' + iso(addDays(parseIso(s.date), 1)) + '"> ' +
-          '<button class="btn sec" data-act="movepk" data-cid="' + s.cid + '" data-date="' + s.date + '">Move</button>');
+        ? '<button class="btn" data-act="restore" data-cid="' + m.cid + '" data-date="' + m.date + '">Restore pickup</button>'
+        : '<div class="row"><button class="btn danger" data-act="cancelpk" data-cid="' + m.cid + '" data-date="' + m.date + '">Cancel pickup</button>' +
+          '<span class="small">or move to</span><input type="date" id="moveDate" min="' + iso(Model.today) + '" value="' + iso(addDays(parseIso(m.date), 1)) + '">' +
+          '<button class="btn sec" data-act="movepk" data-cid="' + m.cid + '" data-date="' + m.date + '">Move</button></div>');
+  } else if (m.kind === 'add') {
+    const opts = cs.map(c => '<option value="' + c.id + '">' + Model.contLabel(c) + '</option>').join('');
+    body = close + '<h3>Add an extra pickup</h3><div class="form"><label>Container<select id="addCid">' + opts + '</select></label>' +
+      '<label>Date<input type="date" id="addDate" min="' + iso(Model.today) + '" value="' + m.date + '"></label></div>' +
+      '<p class="small">Free if at least ' + ASSUMPTIONS.freeRescheduleDays + ' day ahead; otherwise a €' + ASSUMPTIONS.sameDayFee + ' same-day fee applies.</p>' +
+      '<button class="btn" data-act="addpk">Add pickup</button>';
   }
-  const opts = cs.map(c => '<option value="' + c.id + '"' + (c.id === ui.cid ? ' selected' : '') + '>' + Model.contLabel(c) + '</option>').join('');
-  const addForm = '<div class="card" style="margin-top:14px"><h3>Add an extra pickup manually</h3>' +
-    '<select id="addCid">' + opts + '</select> <input type="date" id="addDate" min="' + iso(Model.today) + '" value="' + iso(addDays(Model.today, 2)) + '"> ' +
-    '<button class="btn sec" data-act="addpk">Add pickup</button></div>';
-  const c = Model.cont(ui.cid), cur = Math.round(Model.currentFill(c));
-  return '<h2>Planner</h2><p class="sub">Next 14 days. Solid = scheduled, dashed ✦ = suggested by the agent (click to review and apply).</p>' +
-    '<div class="legend">' + Object.values(STREAMS).map(s => '<span><i style="background:' + s.color + '"></i>' + s.label + '</span>').join('') + '</div>' +
-    '<div class="cal">' + cells + '</div>' +
-    '<div class="card" style="margin-top:14px">' + panel + '</div>' + addForm +
-    '<div class="card" style="margin-top:14px"><h3>Fill-level forecast</h3><select id="chartSel">' + opts + '</select> <span class="small">Sensor now: <b>' + cur + '%</b> · measured fill rate ≈ ' + Model.measuredRate(c).toFixed(1) + '%/day × demand factor ' + Model.scenarioMult(c).toFixed(2) + '</span>' + chartSvg(c) + '</div>';
+  return '<div class="modal-bg" data-act="closemodal"><div class="modal" role="dialog">' + body + '</div></div>';
+}
+
+function viewForecast() {
+  const cs = containersInView();
+  if (!ui.cid || !cs.find(c => c.id === ui.cid)) ui.cid = cs[0].id;
+  const c = Model.cont(ui.cid);
+  const opts = cs.map(x => '<option value="' + x.id + '"' + (x.id === ui.cid ? ' selected' : '') + '>' + Model.contLabel(x) + '</option>').join('');
+  return '<h2>Forecast</h2><div class="fc-head"><select id="chartSel">' + opts + '</select>' +
+    '<span class="small">Sensor now <b>' + Math.round(Model.currentFill(c)) + '%</b></span></div>' +
+    '<div class="card">' + chartSvg(c, true) + '</div>';
 }
 
 function viewAgent() {
@@ -187,7 +210,7 @@ function render() {
   $('#agentCount').textContent = n || '';
   const sc = SCENARIOS[Model.scenario];
   $('#banner').innerHTML = sc.note ? '<b>Scenario: ' + sc.label + '.</b> ' + sc.note + ' Forecasts use higher or lower fill rates.' : '';
-  $('#view').innerHTML = { overview: viewOverview, planner: viewPlanner, agent: viewAgent, data: viewData }[ui.tab]();
+  $('#view').innerHTML = { overview: viewOverview, planner: viewPlanner, forecast: viewForecast, agent: viewAgent, data: viewData }[ui.tab]();
   Model.save();
 }
 
@@ -197,34 +220,39 @@ function init() {
   $('#locSel').innerHTML = '<option value="">All locations</option>' + LOCATIONS.map(l => '<option value="' + l.id + '">' + l.name + '</option>').join('');
   $('#scSel').innerHTML = Object.entries(SCENARIOS).map(([k, v]) => '<option value="' + k + '">' + v.label + '</option>').join('');
   $('#scSel').value = Model.scenario;
-  $('#locSel').onchange = e => { ui.loc = e.target.value; ui.sel = null; render(); };
+  $('#locSel').onchange = e => { ui.loc = e.target.value; ui.modal = null; render(); };
   $('#scSel').onchange = e => { Model.scenario = e.target.value; render(); };
-  $('#resetBtn').onclick = () => { Model.reset(); Model.scenario = 'normal'; $('#scSel').value = 'normal'; ui.sel = null; render(); };
+  $('#resetBtn').onclick = () => { Model.reset(); Model.scenario = 'normal'; $('#scSel').value = 'normal'; ui.modal = null; render(); };
   $('#nav').onclick = e => { const b = e.target.closest('button'); if (b) { ui.tab = b.dataset.tab; render(); } };
 
   $('#view').addEventListener('click', e => {
     const b = e.target.closest('[data-act]'); if (!b) return;
     const d = b.dataset, act = d.act;
-    if (act === 'apply' || act === 'dismiss') {
+    if (act === 'closemodal') { if (e.target !== b && !d.x) return; ui.modal = null; }
+    else if (act === 'apply' || act === 'dismiss') {
       const r = allRecs().find(x => x.id === d.id);
-      if (r) { act === 'apply' ? Model.apply(r) : Model.dismiss(r); ui.sel = null; }
+      if (r) { act === 'apply' ? Model.apply(r) : Model.dismiss(r); }
+      ui.modal = null;
     } else if (act === 'applyall') {
       viewRecs().filter(r => r.ops).forEach(() => {
         const r = viewRecs().find(x => x.ops); if (r) Model.apply(r);
       });
-    } else if (act === 'selpk') ui.sel = { kind: 'pk', cid: d.cid, date: d.date };
-    else if (act === 'selghost') ui.sel = { kind: 'ghost', id: d.id };
-    else if (act === 'cancelpk') { Model.manual('cancel', d.cid, d.date); }
-    else if (act === 'restore') { Model.manual('add', d.cid, d.date); }
+    } else if (act === 'selpk') ui.modal = { kind: 'pk', cid: d.cid, date: d.date };
+    else if (act === 'selghost') ui.modal = { kind: 'ghost', id: d.id };
+    else if (act === 'openadd') ui.modal = { kind: 'add', date: d.date || iso(addDays(Model.today, 2)) };
+    else if (act === 'cancelpk') { Model.manual('cancel', d.cid, d.date); ui.modal = null; }
+    else if (act === 'restore') { Model.manual('add', d.cid, d.date); ui.modal = null; }
     else if (act === 'movepk') {
       const nd = $('#moveDate').value;
-      if (nd && nd !== d.date) { Model.manual('cancel', d.cid, d.date); Model.manual('add', d.cid, nd); ui.sel = { kind: 'pk', cid: d.cid, date: nd }; }
+      if (nd && nd !== d.date) { Model.manual('cancel', d.cid, d.date); Model.manual('add', d.cid, nd); }
+      ui.modal = null;
     } else if (act === 'addpk') {
       const cid = $('#addCid').value, date = $('#addDate').value;
-      if (cid && date) { Model.manual('add', cid, date); ui.sel = { kind: 'pk', cid, date }; }
+      if (cid && date) { Model.manual('add', cid, date); ui.modal = null; }
     }
     render();
   });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && ui.modal) { ui.modal = null; render(); } });
   $('#view').addEventListener('change', e => {
     if (e.target.id === 'chartSel') { ui.cid = e.target.value; render(); }
     if (e.target.dataset.fill) { Model.fillOverride[e.target.dataset.fill] = +e.target.value; render(); }

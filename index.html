@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SmartPlan – concept prototype</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <aside class="side">
+    <div class="brand"><span class="logo">♻</span><div><b>SmartPlan</b><small>Concept prototype</small></div></div>
+    <nav id="nav">
+      <button data-tab="overview" class="on">Overview</button>
+      <button data-tab="planner">Planner</button>
+      <button data-tab="agent">AI agent <span id="agentCount" class="pill"></span></button>
+      <button data-tab="data">Data &amp; assumptions</button>
+    </nav>
+    <p class="side-note">Demo with synthetic data. Not an official product; no real customer data is used.</p>
+  </aside>
+
+  <main>
+    <header class="top">
+      <label>Location
+        <select id="locSel"></select>
+      </label>
+      <label>Demand scenario
+        <select id="scSel"></select>
+      </label>
+      <button id="resetBtn" class="ghost">Reset demo</button>
+    </header>
+    <div id="banner"></div>
+    <section id="view"></section>
+  </main>
+
+  <script src="data.js"></script>
+  <script src="engine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

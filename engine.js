@@ -63,6 +63,7 @@ const Model = {
   today: startOfDay(new Date()),
   hist: null,
   overrides: {},     // "cid|YYYY-MM-DD" -> 'added' | 'cancelled'
+  amounts: {},       // "cid|YYYY-MM-DD" -> number of containers (manual pickups, default 1)
   dismissed: {},     // recId -> true
   tasks: {},         // recId -> true (composition audit tasks created)
   fillOverride: {},  // cid -> % (sensor simulator)
@@ -102,12 +103,12 @@ const Model = {
       for (const c of CONTAINERS) {
         if (cid && c.id !== cid) continue;
         const st = this.status(c, date);
-        if (st) out.push({ cid: c.id, date: iso(date), d, status: st });
+        if (st) out.push({ cid: c.id, date: iso(date), d, status: st, amount: this.amounts[c.id + '|' + iso(date)] || 1 });
       }
     }
     return out;
   },
-  reset() { this.overrides = {}; this.dismissed = {}; this.tasks = {}; this.fillOverride = {}; this.log = []; },
+  reset() { this.overrides = {}; this.amounts = {}; this.dismissed = {}; this.tasks = {}; this.fillOverride = {}; this.log = []; },
 
   /* ---------- sensor + forecast ---------- */
   currentFill(c) {
@@ -189,7 +190,7 @@ const Model = {
       const cur = Math.round(this.currentFill(c));
       const rate = this.measuredRate(c) * this.scenarioMult(c);
       const base = this.simulate(c);
-      const scNote = this.scenario === 'normal' ? '' : ' Demand scenario "' + sc.label + '" is applied.';
+      const scNote = this.scenario === 'normal' ? '' : ' Simulated event "' + sc.label + '" is applied.';
       let rec = null;
 
       /* 1) overflow risk */
@@ -299,16 +300,22 @@ const Model = {
   },
 
   apply(rec) {
-    if (rec.ops) this.overrides = this.applyOps(this.overrides, rec.ops);
+    if (rec.ops) {
+      this.overrides = this.applyOps(this.overrides, rec.ops);
+      rec.ops.forEach(o => { if (o.op === 'cancel') delete this.amounts[o.cid + '|' + o.date]; });
+    }
     else this.tasks[rec.id] = true;
     this.log.unshift({ t: new Date().toISOString(), text: (rec.ops ? 'Applied: ' : 'Task created: ') + rec.title });
   },
   dismiss(rec) { this.dismissed[rec.id] = true; this.log.unshift({ t: new Date().toISOString(), text: 'Dismissed: ' + rec.title }); },
 
-  manual(op, cid, date) {
+  manual(op, cid, date, amount) {
     this.overrides = this.applyOps(this.overrides, [{ op, cid, date }]);
+    const key = cid + '|' + date;
+    if (op === 'add' && amount > 1) this.amounts[key] = amount; else delete this.amounts[key];
     const c = this.cont(cid);
-    this.log.unshift({ t: new Date().toISOString(), text: (op === 'add' ? 'Added' : 'Cancelled') + ' pickup manually: ' + this.streamLabel(c) + ', ' + this.loc(c.loc).name + ' on ' + fmtDate(date) });
+    const qty = op === 'add' && amount > 1 ? amount + ' × ' : '';
+    this.log.unshift({ t: new Date().toISOString(), text: (op === 'add' ? 'Added' : 'Cancelled') + ' pickup manually: ' + qty + this.streamLabel(c) + ', ' + this.loc(c.loc).name + ' on ' + fmtDate(date) });
   },
   isFree(date) { return Math.round((parseIso(date) - this.today) / 864e5) >= ASSUMPTIONS.freeRescheduleDays; },
 
@@ -316,7 +323,7 @@ const Model = {
   save() {
     try {
       localStorage.setItem('smartplan-v1', JSON.stringify({
-        overrides: this.overrides, dismissed: this.dismissed, tasks: this.tasks,
+        overrides: this.overrides, amounts: this.amounts, dismissed: this.dismissed, tasks: this.tasks,
         fillOverride: this.fillOverride, scenario: this.scenario, log: this.log.slice(0, 40)
       }));
     } catch (e) { /* storage may be unavailable */ }

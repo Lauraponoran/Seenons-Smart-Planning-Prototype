@@ -4,19 +4,19 @@
 ------------------------------------------------------------------- */
 
 const STREAMS = {
-  residual: { label: 'Residual',          color: '#6b7280', kgPerL: 0.12, co2PerKg: 0 },
-  paper:    { label: 'Paper & cardboard', color: '#2563eb', kgPerL: 0.08, co2PerKg: 0.9 },
-  glass:    { label: 'Glass',             color: '#16a34a', kgPerL: 0.35, co2PerKg: 0.3 },
-  organic:  { label: 'Organic',           color: '#b45309', kgPerL: 0.45, co2PerKg: 0.2 },
-  pmd:      { label: 'Plastic & cans',    color: '#f59e0b', kgPerL: 0.04, co2PerKg: 1.5 }
+  residual: { label: 'Residual',          color: '#1F4E5A', text: '#FFFFFF', kgPerL: 0.12, co2PerKg: 0 },
+  paper:    { label: 'Paper & cardboard', color: '#3C78B4', text: '#FFFFFF', kgPerL: 0.08, co2PerKg: 0.9 },
+  glass:    { label: 'Glass',             color: '#8FD3BD', text: '#12343B', kgPerL: 0.35, co2PerKg: 0.3 },
+  organic:  { label: 'Organic',           color: '#7DB84F', text: '#10260A', kgPerL: 0.45, co2PerKg: 0.2 },
+  pmd:      { label: 'Plastic & cans',    color: '#F4A3B8', text: '#4A1B2B', kgPerL: 0.04, co2PerKg: 1.5 }
 };
 
 // type drives the weekday demand pattern (index 0 = Sunday)
 const LOCATIONS = [
-  { id: 'l1', name: 'Amsterdam – Centrum Store',  type: 'Retail',           employees: 24, hours: '09:00–21:00 (7 days)' },
-  { id: 'l2', name: 'Utrecht – Station Store',    type: 'Retail',           employees: 18, hours: '08:00–20:00 (7 days)' },
-  { id: 'l3', name: 'Rotterdam – Head Office',    type: 'Office',           employees: 140, hours: '08:00–18:00 (Mon–Fri)' },
-  { id: 'l4', name: 'Schiphol – Café Kiosk',      type: 'Food & Beverage',  employees: 12, hours: '05:00–22:00 (7 days)' }
+  { id: 'l1', code: 'AMS', name: 'Amsterdam – Centrum Store',  type: 'Retail',           employees: 24, hours: '09:00–21:00 (7 days)' },
+  { id: 'l2', code: 'UTR', name: 'Utrecht – Station Store',    type: 'Retail',           employees: 18, hours: '08:00–20:00 (7 days)' },
+  { id: 'l3', code: 'RTM', name: 'Rotterdam – Head Office',    type: 'Office',           employees: 140, hours: '08:00–18:00 (Mon–Fri)' },
+  { id: 'l4', code: 'SCH', name: 'Schiphol – Café Kiosk',      type: 'Food & Beverage',  employees: 12, hours: '05:00–22:00 (7 days)' }
 ];
 
 const WEEKDAY_FACTORS = {
@@ -52,7 +52,7 @@ const MISS_REASONS = ['Container blocked', 'Truck capacity', 'Access locked', 'N
 
 // Demand scenarios = multipliers applied to the forecast fill rate, per location type
 const SCENARIOS = {
-  normal:    { label: 'Normal week',            note: '',                                                        mult: { 'Retail': 1.0,  'Office': 1.0,  'Food & Beverage': 1.0 } },
+  normal:    { label: 'No event (normal week)', note: '',                                                        mult: { 'Retail': 1.0,  'Office': 1.0,  'Food & Beverage': 1.0 } },
   blackfri:  { label: 'Black Friday week',      note: 'Retail volumes of packaging and paper spike.',            mult: { 'Retail': 1.6,  'Office': 1.0,  'Food & Beverage': 1.15 } },
   sinter:    { label: 'Sinterklaas season',     note: 'Gift wrapping drives paper and residual in retail.',      mult: { 'Retail': 1.45, 'Office': 0.95, 'Food & Beverage': 1.2 } },
   xmas:      { label: 'Christmas peak',         note: 'Retail and hospitality peak, offices are quiet.',         mult: { 'Retail': 1.5,  'Office': 0.6,  'Food & Beverage': 1.35 } },

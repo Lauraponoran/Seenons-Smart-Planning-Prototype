@@ -2,19 +2,19 @@
 
 A static, dependency-free prototype of the idea from our case: **partner data → platform → AI agent → actionable insight → one click in the scheduling interface.**
 
-Everything is synthetic demo data. The styling uses a similar teal palette but no real logos or brand names; this is a student concept, not an official product.
+Everything is synthetic demo data. The styling uses a navy / teal / pink palette inspired by Seenons, with no real logos or brand assets; this is a student concept, not an official product.
 
 ## What it shows
 
 | Tab | What it demonstrates |
 |---|---|
 | **Overview** | The metrics we assume the platform already shows (orders, weight, separation rate, CO₂, weight by stream) plus new ones: missed-pickup rate by weekday and containers at overflow risk. |
-| **Planner** | Month view (rooster-style) with square day cells and month navigation. A slim **+ Add pickup** bar sits above the calendar. Dashed ✦ chips are agent suggestions; click any chip for details, apply, cancel or move ("free ≥ 1 day before" rule); "+N more" opens the full day. |
+| **Planner** | Month view with square day cells. Above it: a **Simulate an event** card (Black Friday, Sinterklaas, …) showing the predicted effects and what the agent makes of them. The calendar toolbar has **+ Add pickup** (location, type of waste, amount, date), month navigation and a **Filter** menu (by location and/or waste type). Every pickup is a bar in its waste-type colour with a location tag (AMS, UTR, RTM, SCH); hatched chips marked **AI** are agent suggestions you can review and apply. |
 | **Forecast** | Large fill-level chart per container: sensor history, forecast and pickups. |
 | **AI agent** | Prioritised suggestions with the reasoning and impact (pickups, €, CO₂). Apply, dismiss or apply all; activity log. |
 | **Data & assumptions** | Assumptions stated up front, sensor simulator (move a slider and watch the agent react), and a roadmap of new data collection (IoT sensors, weigh-at-pickup, composition scanning, calendar/behaviour, service events) with fallbacks if the data does not exist. |
 
-Use the **Demand scenario** switch (Black Friday, Sinterklaas, Christmas, summer) to see predictive instead of reactive scheduling.
+Use **Simulate an event** (Black Friday, Sinterklaas, Christmas, summer) to see predictive instead of reactive scheduling.
 
 ## How the "agent" works (`engine.js`)
 

@@ -50,10 +50,10 @@ function pageHead(title, sub) {
    segmented control — one click per scenario instead of a dropdown — plus Reset demo.
    Picking an event reveals the info line (effects + overflow count) inside the strip. */
 function eventWidget() {
-  const pills = Object.entries(SCENARIOS).map(([k, v]) =>
-    '<button class="wi-pill' + (k === Model.scenario ? ' on' : '') + '" data-act="scenario" data-val="' + k + '" aria-pressed="' + (k === Model.scenario) + '">' + (v.short || v.label) + '</button>').join('');
-  return '<section class="whatif"><div class="wi-top"><div class="wi-title"><b>What if…?</b><span>Pick an event and watch the agent plan ahead</span></div>' +
-    '<div class="wi-pills" role="group" aria-label="Simulate an event">' + pills + '</div>' +
+  const tabs = Object.entries(SCENARIOS).map(([k, v]) =>
+    '<button class="wi-tab' + (k === Model.scenario ? ' on' : '') + '" data-act="scenario" data-val="' + k + '" aria-pressed="' + (k === Model.scenario) + '">' + (v.short || v.label) + '</button>').join('');
+  return '<section class="whatif"><div class="wi-top"><div class="wi-title">Simulate an event <small>Demo</small></div>' +
+    '<div class="wi-pills" role="group" aria-label="Simulate an event">' + tabs + '</div>' +
     '<button class="wi-reset" data-act="reset">Reset demo</button></div>' + eventLine() + '</section>';
 }
 
@@ -76,14 +76,14 @@ function eventLine() {
   const sc = SCENARIOS[Model.scenario], why = (typeof SCENARIO_WHY !== 'undefined' && SCENARIO_WHY[Model.scenario]) || {};
   const fx = scenarioEffects(), n = fx.now.overflow;
   const esc = t => String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-  // one tile per location type; hover / focus / tap the percentage to see why it is what it is
+  // one tag per location type; hover / focus / tap to see why the percentage is what it is
   const tiles = Object.entries(sc.mult).map(([t, m]) => {
     const tip = (why[t] || '') + ' The forecast fill rate for every ' + t.toLowerCase() + ' container is multiplied by ' + m + '.';
-    return '<div class="fx tip ' + (m > 1 ? 'up' : m < 1 ? 'down' : '') + '" tabindex="0" data-tip="' + esc(tip) + '"><span class="fx-v">' + pctDelta(m) + '</span><span class="fx-l">' + t + '</span></div>';
+    return '<div class="fx tip ' + (m > 1 ? 'up' : m < 1 ? 'down' : '') + '" tabindex="0" data-tip="' + esc(tip) + '"><span class="fx-l">' + t + '</span><span class="fx-v">' + pctDelta(m) + '</span></div>';
   }).join('');
   const riskTip = 'Containers the agent expects to reach ' + ASSUMPTIONS.alertFill + '% full within 14 days, before their next pickup. ' +
     (n > fx.base.overflow ? 'The higher waste volumes fill them faster, so ' + (n - fx.base.overflow) + ' more than normal now need action.' : 'This event does not add any new overflow risks.');
-  const risk = '<div class="fx risk tip" tabindex="0" data-tip="' + esc(riskTip) + '"><span class="fx-v">' + n + '</span><span class="fx-l">overflow risk' + (n === 1 ? '' : 's') + ' · ' + fx.base.overflow + ' normally</span></div>';
+  const risk = '<div class="fx risk tip" tabindex="0" data-tip="' + esc(riskTip) + '"><span class="fx-l">Overflow risks</span><span class="fx-v">' + n + '</span><span class="fx-l">(' + fx.base.overflow + ' normally)</span></div>';
   return '<div class="wi-fx">' + (sc.note ? '<p class="wi-note">' + sc.note + '</p>' : '') + tiles + risk + '</div>';
 }
 

@@ -4,7 +4,7 @@ const ui = {
   tab: 'planner', loc: '', cid: null, modal: null, month: null,
   fLocs: [], fStreams: [], filterOpen: false,           // planner calendar filters (empty = show all)
   add: { open: false, loc: null, stream: null, amount: 1, date: null, msg: '' },
-  scrollAdd: false, notifAll: false, notifHidden: false, simOpen: false
+  scrollAdd: false, notifAll: false, notifHidden: false, simOpen: false, from: '', to: ''
 };
 const $ = s => document.querySelector(s);
 const eur = n => (n < 0 ? '−' : n > 0 ? '+' : '') + '€' + Math.abs(Math.round(n));
@@ -81,12 +81,14 @@ function simulator() {
 }
 
 /* heading + widget (+ location select on pages that filter by one location) */
-function pageTop(title, sub, withLoc) {
-  const loc = withLoc
-    ? '<div class="toolbar"><label>Location<select id="locSel"><option value="">All locations</option>' +
-      LOCATIONS.map(l => '<option value="' + l.id + '"' + (l.id === ui.loc ? ' selected' : '') + '>' + l.name + '</option>').join('') + '</select></label></div>'
-    : '';
-  return pageHead(title, sub) + loc;
+function pageTop(title, sub, withLoc, withDate) {
+  const sel = '<label>Location<select id="locSel"><option value="">All locations</option>' +
+    LOCATIONS.map(l => '<option value="' + l.id + '"' + (l.id === ui.loc ? ' selected' : '') + '>' + l.name + '</option>').join('') + '</select></label>';
+  const lim = ' min="' + iso(addDays(Model.today, -HISTORY_DAYS)) + '" max="' + iso(Model.today) + '"';
+  const dates = !withDate ? '' :
+    '<label>From<input type="date" id="fromSel"' + lim + ' value="' + ui.from + '"></label><label>To<input type="date" id="toSel"' + lim + ' value="' + ui.to + '"></label>' +
+    ((ui.from || ui.to) ? '<button class="linkbtn" style="align-self:center" data-act="cleardates">Clear dates</button>' : '<span class="small" style="align-self:center">Showing all 12 weeks</span>');
+  return pageHead(title, sub) + (withLoc ? '<div class="toolbar">' + sel + dates + '</div>' : '');
 }
 
 function chartSvg(c, big) {
@@ -116,35 +118,112 @@ function chartSvg(c, big) {
     '<div class="legend"><span><i style="background:' + COL.grey + '"></i>Sensor history</span><span><i style="background:' + COL.teal + '"></i>Forecast</span><span>● pickups</span></div>';
 }
 
+/* ---------------- Report: charts modelled on the Seenons waste-saver dashboard ---------------- */
+const LOC_COL = { l1: '#4DA58A', l2: '#5B93CF', l3: '#F2A65A', l4: '#E5566D' };
+const niceMax = v => { const p = Math.pow(10, Math.floor(Math.log10(Math.max(v, 1)))); return Math.ceil(v / p) * p; };
+const num = n => Math.round(n).toLocaleString('en-GB');
+const weekLbl = i => i === 11 ? 'now' : '−' + (11 - i) + 'w';
+const legendOf = items => '<div class="legend">' + items.map(([c, l]) => '<span><i style="background:' + c + '"></i>' + l + '</span>').join('') + '</div>';
+
+function chartStreamLoc(bd, locs) {
+  const keys = Object.keys(STREAMS), W = 520, rowH = 34, L = 112, R = 14, H = keys.length * rowH + 26;
+  const max = niceMax(Math.max(1, ...keys.map(k => Object.values(bd.sl[k]).reduce((a, b) => a + b, 0))));
+  const x = v => L + v / max * (W - L - R);
+  let s = '';
+  for (let t = 0; t <= 4; t++) { const v = max * t / 4; s += '<line x1="' + x(v) + '" x2="' + x(v) + '" y1="0" y2="' + (H - 22) + '" stroke="' + COL.grid + '"/><text x="' + x(v) + '" y="' + (H - 6) + '" text-anchor="middle">' + num(v) + '</text>'; }
+  keys.forEach((k, i) => {
+    const y = i * rowH + 6; let x0 = 0;
+    s += '<text x="' + (L - 8) + '" y="' + (y + 15) + '" text-anchor="end">' + STREAMS[k].label + '</text>';
+    locs.forEach(l => {
+      const v = bd.sl[k][l.id] || 0; if (!v) return;
+      s += '<rect x="' + x(x0) + '" y="' + y + '" width="' + Math.max(1, x(x0 + v) - x(x0)) + '" height="22" rx="3" fill="' + LOC_COL[l.id] + '"><title>' + l.name + ' · ' + kg(v) + '</title></rect>';
+      x0 += v;
+    });
+  });
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Weight by stream and location">' + s + '</svg>' + legendOf(locs.map(l => [LOC_COL[l.id], l.name]));
+}
+
+function chartWeekStack(bd) {
+  const keys = Object.keys(STREAMS), W = 520, H = 220, L = 50, R = 8, T = 10, B = 24, bw = (W - L - R) / 12;
+  const max = niceMax(Math.max(1, ...bd.weeks.map(w => keys.reduce((a, k) => a + (w[k] || 0), 0))));
+  const y = v => T + (1 - v / max) * (H - T - B);
+  let s = '';
+  for (let t = 0; t <= 4; t++) { const v = max * t / 4; s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="' + COL.grid + '"/><text x="' + (L - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + num(v) + '</text>'; }
+  bd.weeks.forEach((w, i) => {
+    let cum = 0;
+    keys.forEach(k => {
+      const v = w[k] || 0; if (!v) return;
+      s += '<rect x="' + (L + i * bw + 4) + '" y="' + y(cum + v) + '" width="' + (bw - 8) + '" height="' + (y(cum) - y(cum + v)) + '" fill="' + STREAMS[k].color + '"><title>' + STREAMS[k].label + ' · ' + kg(v) + '</title></rect>';
+      cum += v;
+    });
+    if (i % 3 === 0 || i === 11) s += '<text x="' + (L + i * bw + bw / 2) + '" y="' + (H - 6) + '" text-anchor="middle">' + weekLbl(i) + '</text>';
+  });
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Weight over time">' + s + '</svg>' + legendOf(keys.map(k => [STREAMS[k].color, STREAMS[k].label]));
+}
+
+function chartRates(bd) {
+  const W = 520, H = 220, L = 42, R = 10, T = 10, B = 24;
+  const x = i => L + (i + 0.5) / 12 * (W - L - R), y = v => T + (1 - v) * (H - T - B);
+  const pts = bd.weeks.map(w => {
+    const t = Object.values(w).reduce((a, b) => a + b, 0); if (!t) return null;
+    return { sep: 1 - (w.residual || 0) / t, res: Object.entries(w).reduce((a, [k, v]) => a + v * (STREAMS[k].recovery || 0), 0) / t };
+  });
+  let s = '';
+  [0, 0.25, 0.5, 0.75, 1].forEach(v => { s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="' + COL.grid + '"/><text x="' + (L - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + Math.round(v * 100) + '%</text>'; });
+  const line = (key, col) => {
+    let d = '', pen = false, dots = '';
+    pts.forEach((p, i) => {
+      if (!p) { pen = false; return; }
+      d += (pen ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(p[key]).toFixed(1) + ' '; pen = true;
+      dots += '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(p[key]).toFixed(1) + '" r="3" fill="' + col + '"><title>' + pct(p[key]) + '</title></circle>';
+    });
+    return '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="2.5"/>' + dots;
+  };
+  for (let i = 0; i < 12; i++) if (i % 3 === 0 || i === 11) s += '<text x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="middle">' + weekLbl(i) + '</text>';
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Source separation rate vs resource saved rate">' + s + line('sep', COL.teal) + line('res', '#3C6FA8') + '</svg>' +
+    legendOf([[COL.teal, 'Source separation rate'], ['#3C6FA8', 'Resource saved rate']]);
+}
+
+/* recommended action (composition tasks) and the list of tasks created from them */
+function taskCard(r) {
+  return '<div class="card rec"><div class="body"><span class="badge ' + r.severity + '">' + r.severity + '</span> <span class="badge">' + typeLabel[r.type] + '</span>' +
+    '<h4>' + r.title + '</h4><p>' + r.reason + '</p><div>' + impactChips(r) + '</div></div>' +
+    '<div class="acts"><button class="btn" data-act="apply" data-id="' + r.id + '">Create task</button><button class="btn sec" data-act="dismiss" data-id="' + r.id + '">Dismiss</button></div></div>';
+}
+function tasksCard() {
+  const items = Object.entries(Model.tasks).filter(([, t]) => t && typeof t === 'object' && (!ui.loc || t.loc === ui.loc));
+  return '<div class="card"><h3>Tasks</h3>' + (items.length
+    ? items.map(([id, t]) => '<label class="task' + (t.done ? ' done' : '') + '"><input type="checkbox" data-task="' + id + '"' + (t.done ? ' checked' : '') + '><span>' + t.title + '</span></label>').join('')
+    : '<p class="small">No tasks yet. Create one from a recommended action above.</p>') + '</div>';
+}
+
 /* ---------------- views ---------------- */
 function viewOverview() {
-  const k = Model.kpis(ui.loc);
-  const recs = viewRecs();
-  const over = recs.filter(r => r.type === 'overflow').length;
-  const maxStream = Math.max(1, ...Object.values(k.byStream));
-  const streams = Object.keys(STREAMS).map(s => '<div class="bar-row"><span>' + STREAMS[s].label + '</span><div class="bar"><i style="width:' + (k.byStream[s] / maxStream * 100) + '%;background:' + STREAMS[s].color + '"></i></div><span>' + kg(k.byStream[s]) + '</span></div>').join('');
-  const mw = Math.max(1, ...k.weekly);
-  const weekly = '<svg viewBox="0 0 360 120" width="100%">' + k.weekly.map((v, i) => '<rect x="' + (i * 30 + 4) + '" y="' + (100 - v / mw * 90) + '" width="22" height="' + (v / mw * 90) + '" rx="3" fill="' + COL.teal + '"/><text x="' + (i * 30 + 8) + '" y="114">w' + (i + 1) + '</text>').join('') + '</svg>';
+  const f = ui.from, t = ui.to;
+  const k = Model.kpis(ui.loc, f, t), bd = Model.breakdown(ui.loc, f, t);
+  const over = viewRecs().filter(r => r.type === 'overflow').length;
   const locs = LOCATIONS.filter(l => !ui.loc || l.id === ui.loc);
   const heat = '<table><tr><th>Location</th>' + [1, 2, 3, 4, 5, 6, 0].map(d => '<th>' + WD[d] + '</th>').join('') + '</tr>' + locs.map(l => {
     const ldays = new Set(CONTAINERS.filter(c => c.loc === l.id).flatMap(c => c.days));
     return '<tr><td>' + l.name + '</td>' + [1, 2, 3, 4, 5, 6, 0].map(d => {
       if (!ldays.has(d)) return '<td class="heat" style="color:#b6c7c4">–</td>';
-      const m = Model.missRate(l.id, d), a = Math.min(1, m.rate / 0.3);
-      return '<td class="heat" style="background:rgba(234,91,125,' + (0.08 + a * 0.6).toFixed(2) + ')">' + pct(m.rate) + '</td>';
+      const m = Model.missRate(l.id, d, f, t), a = Math.min(1, m.rate / 0.3);
+      return '<td class="heat" style="background:rgba(229,86,109,' + (0.08 + a * 0.6).toFixed(2) + ')">' + pct(m.rate) + '</td>';
     }).join('') + '</tr>';
   }).join('') + '</table>';
-    return pageTop('Report', 'What Seenons clients see today, plus ideas from competitors and the market, and how to turn them into next steps.', true) +
-    '<div class="grid kpis">' +
-    '<div class="card kpi"><div class="v">' + k.orders + '</div><div class="l">Total orders (12 weeks)</div></div>' +
-    '<div class="card kpi"><div class="v">' + kg(k.weight) + '</div><div class="l">Total weight</div></div>' +
-    '<div class="card kpi"><div class="v">' + pct(k.separation) + '</div><div class="l">Source separation rate</div></div>' +
-    '<div class="card kpi"><div class="v">' + kg(k.co2) + '</div><div class="l">CO₂ saved (demo factors)</div></div>' +
-    '<div class="card kpi ' + (k.missRate > 0.06 ? 'warn' : '') + '"><div class="v">' + pct(k.missRate) + '</div><div class="l">Missed pickups (' + k.missed + ')</div></div>' +
-    '<div class="card kpi ' + (over ? 'warn' : '') + '"><div class="v">' + over + '</div><div class="l">Containers at risk of overflow (14 d)</div></div></div>' +
-    '<div class="grid cols2"><div class="card"><h3>Waste (kg) by stream</h3>' + streams + '</div>' +
-    '<div class="card"><h3>Weight per week (kg)</h3>' + weekly + '</div></div>' +
-    '<div class="card" style="margin-bottom:14px"><h3>Missed-pickup rate by weekday <span class="small">— service-event data the agent learns from</span></h3>' + heat + '</div>';
+  const acts = viewRecs().filter(r => !r.ops);
+  const kpi = (v, l, warn) => '<div class="card kpi ' + (warn ? 'warn' : '') + '"><div class="v">' + v + '</div><div class="l">' + l + '</div></div>';
+  return pageTop('Report', 'What Seenons clients see today, plus ideas from competitors and the market, and how to turn them into next steps.', true, true) +
+    '<div class="grid kpis">' + kpi(k.orders, 'Total orders') + kpi(kg(k.weight), 'Total weight') + kpi(pct(k.separation), 'Source separation rate') +
+    kpi(pct(k.resource), 'Resource saved rate') + kpi(kg(k.co2), 'CO₂ saved (demo factors)') +
+    kpi(pct(k.missRate), 'Missed pickups (' + k.missed + ')', k.missRate > 0.06) + kpi(over, 'Containers at risk of overflow (14 d)', over) + '</div>' +
+    '<h3 class="sec-h">Waste details</h3>' +
+    '<div class="grid cols2"><div class="card"><h3>Weight (kg) by stream and location</h3>' + chartStreamLoc(bd, locs) + '</div>' +
+    '<div class="card"><h3>Weight (kg) over time</h3>' + chartWeekStack(bd) + '</div></div>' +
+    '<div class="grid cols2"><div class="card"><h3>Source separation rate vs resource saved rate</h3>' + chartRates(bd) + '</div>' +
+    '<div class="card"><h3>Missed-pickup rate by weekday <span class="small">— service-event data the agent learns from</span></h3>' + heat + '</div></div>' +
+    '<h3 class="sec-h">Recommended actions</h3>' + (acts.map(taskCard).join('') || '<p class="sub" style="margin-bottom:14px">No open recommendations.</p>') +
+    tasksCard();
 }
 
 /* ----- planner ----- */
@@ -266,7 +345,7 @@ function viewPlanner() {
 
 /* agent suggestions as small corner notifications on the planner (top 3; the rest behind "+N more") */
 function notifications() {
-  const recs = allRecs();
+  const recs = allRecs().filter(r => r.ops);
   if (!recs.length) return '';
   const shown = ui.notifAll ? recs : recs.slice(0, 3), rest = recs.length - 3;
   const sched = recs.filter(r => r.ops).length;
@@ -294,7 +373,7 @@ function plannerModal() {
     const r = allRecs().find(x => x.id === m.id);
     if (!r) return '';
     body = close + '<span class="ai-demo">AI</span> <span class="badge ' + r.severity + '">' + r.severity + '</span> <span class="badge">' + typeLabel[r.type] + '</span>' +
-      '<h3 style="margin-top:8px">' + r.title + '</h3><p>' + r.reason + '</p><div>' + impactChips(r) + '</div>' +
+      '<h3 style="margin-top:8px">' + r.title + '</h3><p>' + r.reason + '</p><div>' + impactChips(r) + '</div><div style="margin-top:10px">' + chartSvg(Model.cont(r.cid), false) + '</div>' +
       '<div class="acts" style="margin-top:12px"><button class="btn" data-act="apply" data-id="' + r.id + '">' + (r.ops ? 'Apply to schedule' : 'Create task') + '</button>' +
       '<button class="btn sec" data-act="dismiss" data-id="' + r.id + '">Dismiss</button></div>';
   } else if (m.kind === 'pk') {
@@ -303,7 +382,7 @@ function plannerModal() {
     const amount = Model.amounts[m.cid + '|' + m.date] || 1;
     body = close + '<h3>' + Model.contLabel(c) + '</h3><p>' + fmtDate(m.date) + ' · status <b>' + st + '</b>' + (amount > 1 ? ' · <b>' + amount + ' containers</b>' : '') +
       (sim ? ' · forecast fill ~<b>' + Math.round(Math.min(sim.fill, 100)) + '%</b>' : '') +
-      '<br>Missed on this weekday historically: <b>' + pct(mr.rate) + '</b> (' + mr.n + ' pickups)</p>' +
+      '<br>Missed on this weekday historically: <b>' + pct(mr.rate) + '</b> (' + mr.n + ' pickups)</p>' + chartSvg(c, false) +
       (st === 'cancelled'
         ? '<button class="btn" data-act="restore" data-cid="' + m.cid + '" data-date="' + m.date + '">Restore pickup</button>'
         : '<div class="row"><button class="btn danger" data-act="cancelpk" data-cid="' + m.cid + '" data-date="' + m.date + '">Cancel pickup</button>' +
@@ -319,16 +398,6 @@ function plannerModal() {
       '</div><button class="btn sec" data-act="setadd" data-date="' + m.date + '">+ Add a pickup on this day</button>';
   }
   return '<div class="modal-bg" data-act="closemodal"><div class="modal" role="dialog">' + body + '</div></div>';
-}
-
-function viewForecast() {
-  const cs = containersInView();
-  if (!ui.cid || !cs.find(c => c.id === ui.cid)) ui.cid = cs[0].id;
-  const c = Model.cont(ui.cid);
-  const opts = cs.map(x => '<option value="' + x.id + '"' + (x.id === ui.cid ? ' selected' : '') + '>' + Model.contLabel(x) + '</option>').join('');
-  return pageTop('Forecast', '', true) + '<div class="fc-head"><select id="chartSel">' + opts + '</select>' +
-    '<span class="small">Sensor now <b>' + Math.round(Model.currentFill(c)) + '%</b></span></div>' +
-    '<div class="card">' + chartSvg(c, true) + '</div>';
 }
 
 function viewData() {
@@ -359,7 +428,7 @@ function viewData() {
 /* ---------------- render + events ---------------- */
 function render() {
   $('#nav').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === ui.tab));
-  $('#view').innerHTML = { report: viewOverview, planner: viewPlanner, forecast: viewForecast, data: viewData }[ui.tab]() + simulator();
+  $('#view').innerHTML = { report: viewOverview, planner: viewPlanner, data: viewData }[ui.tab]() + simulator();
   if (ui.scrollAdd) {
     ui.scrollAdd = false;
     const el = document.querySelector('.addform');
@@ -389,7 +458,7 @@ function init() {
     if (act === 'closemodal') { if (e.target !== b && !d.x) return; ui.modal = null; }
     else if (act === 'reset') {
       Model.reset(); Model.scenario = 'normal';
-      ui.modal = null; ui.loc = ''; ui.fLocs = []; ui.fStreams = []; ui.filterOpen = false; ui.month = null; resetAdd();
+      ui.modal = null; ui.loc = ''; ui.fLocs = []; ui.fStreams = []; ui.filterOpen = false; ui.month = null; ui.simOpen = false; ui.from = ''; ui.to = ''; resetAdd();
     } else if (act === 'apply' || act === 'dismiss') {
       const r = allRecs().find(x => x.id === d.id);
       if (r) { act === 'apply' ? Model.apply(r) : Model.dismiss(r); }
@@ -402,6 +471,7 @@ function init() {
     else if (act === 'toggleadd') { ui.add.open = !ui.add.open; ui.add.msg = ''; ui.filterOpen = false; ui.scrollAdd = ui.add.open; }
     else if (act === 'setadd') { ui.add.open = true; ui.add.date = d.date; ui.add.msg = ''; ui.modal = null; ui.scrollAdd = true; }
     else if (act === 'notiftoggle') ui.notifHidden = !ui.notifHidden;
+    else if (act === 'cleardates') { ui.from = ''; ui.to = ''; }
     else if (act === 'simtoggle') ui.simOpen = !ui.simOpen;
     else if (act === 'notifmore') ui.notifAll = !ui.notifAll;
     else if (act === 'scenario') Model.scenario = d.val;
@@ -443,7 +513,8 @@ function init() {
   $('#view').addEventListener('change', e => {
     const t = e.target, id = t.id;
     if (id === 'locSel') { ui.loc = t.value; ui.modal = null; render(); }
-    else if (id === 'chartSel') { ui.cid = t.value; render(); }
+    else if (id === 'fromSel' || id === 'toSel') { ui[id === 'fromSel' ? 'from' : 'to'] = t.value; render(); }
+    else if (t.dataset.task) { Model.toggleTask(t.dataset.task); render(); }
     else if (t.dataset.fill) { Model.fillOverride[t.dataset.fill] = +t.value; render(); }
     else if (t.dataset.filter) { toggleIn(t.dataset.filter === 'loc' ? ui.fLocs : ui.fStreams, t.value, t.checked); render(); }
     else if (id === 'addLoc') { ui.add.loc = t.value; ui.add.stream = null; ui.add.msg = ''; render(); }

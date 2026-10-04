@@ -3,12 +3,13 @@
    Replace with real feeds: disposal-partner reports, sensor MQTT/API, etc.
 ------------------------------------------------------------------- */
 
+// recovery = demo share of the collected weight that is actually recycled/recovered (drives "resource saved rate")
 const STREAMS = {
-  residual: { label: 'Residual',          color: '#5E8A96', kgPerL: 0.12, co2PerKg: 0 },
-  paper:    { label: 'Paper & cardboard', color: '#5B93CF', kgPerL: 0.08, co2PerKg: 0.9 },
-  glass:    { label: 'Glass',             color: '#4FBF9F', kgPerL: 0.35, co2PerKg: 0.3 },
-  organic:  { label: 'Organic',           color: '#A3C94E', kgPerL: 0.45, co2PerKg: 0.2 },
-  pmd:      { label: 'Plastic & cans',    color: '#F27FA0', kgPerL: 0.04, co2PerKg: 1.5 }
+  residual: { label: 'Residual',          color: '#5E8A96', kgPerL: 0.12, co2PerKg: 0, recovery: 0 },
+  paper:    { label: 'Paper & cardboard', color: '#5B93CF', kgPerL: 0.08, co2PerKg: 0.9, recovery: 0.7 },
+  glass:    { label: 'Glass',             color: '#4FBF9F', kgPerL: 0.35, co2PerKg: 0.3, recovery: 0.9 },
+  organic:  { label: 'Organic',           color: '#A3C94E', kgPerL: 0.45, co2PerKg: 0.2, recovery: 0.5 },
+  pmd:      { label: 'Plastic & cans',    color: '#F27FA0', kgPerL: 0.04, co2PerKg: 1.5, recovery: 0.45 }
 };
 
 // type drives the weekday demand pattern (index 0 = Sunday)

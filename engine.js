@@ -191,23 +191,38 @@ const Model = {
     }
     return out;
   },
-  missRate(locId, weekday) {
-    const ev = this.hist.events.filter(e => e.loc === locId && e.weekday === weekday);
+  missRate(locId, weekday, from, to) {
+    const ev = this.hist.events.filter(e => e.loc === locId && e.weekday === weekday && (!from || e.date >= from) && (!to || e.date <= to));
     if (ev.length < 5) return { rate: 0, n: ev.length };
     return { rate: ev.filter(e => !e.picked).length / ev.length, n: ev.length };
   },
 
+  /* ---------- chart series for the Report (same filters as kpis) ---------- */
+  breakdown(locId, from, to) {
+    const ev = this.hist.events.filter(e => e.picked && (!locId || e.loc === locId) && (!from || e.date >= from) && (!to || e.date <= to));
+    const sl = {}, weeks = Array.from({ length: 12 }, () => ({}));
+    for (const k of Object.keys(STREAMS)) sl[k] = {};
+    for (const e of ev) {
+      const st = this.cont(e.cid).stream;
+      sl[st][e.loc] = (sl[st][e.loc] || 0) + e.weight;
+      const idx = 11 - Math.floor((parseIso(iso(this.today)) - parseIso(e.date)) / 864e5 / 7);
+      if (idx >= 0 && idx < 12) weeks[idx][st] = (weeks[idx][st] || 0) + e.weight;
+    }
+    return { sl, weeks };
+  },
+
   /* ---------- KPIs from history ---------- */
-  kpis(locId) {
-    const ev = this.hist.events.filter(e => !locId || e.loc === locId);
+  kpis(locId, from, to) {
+    const ev = this.hist.events.filter(e => (!locId || e.loc === locId) && (!from || e.date >= from) && (!to || e.date <= to));
     const picked = ev.filter(e => e.picked);
     const byStream = {};
     for (const k of Object.keys(STREAMS)) byStream[k] = 0;
-    let co2 = 0;
+    let co2 = 0, res = 0;
     for (const e of picked) {
       const c = this.cont(e.cid);
       byStream[c.stream] += e.weight;
       co2 += e.weight * STREAMS[c.stream].co2PerKg;
+      res += e.weight * (STREAMS[c.stream].recovery || 0);
     }
     const total = Object.values(byStream).reduce((a, b) => a + b, 0);
     const sep = total ? 1 - byStream.residual / total : 0;
@@ -219,7 +234,7 @@ const Model = {
     return {
       orders: picked.length, missed: ev.length - picked.length,
       missRate: ev.length ? (ev.length - picked.length) / ev.length : 0,
-      weight: total, byStream, separation: sep, co2, weekly
+      weight: total, byStream, separation: sep, resource: total ? res / total : 0, co2, weekly
     };
   },
 
@@ -347,9 +362,10 @@ const Model = {
       this.overrides = this.applyOps(this.overrides, rec.ops);
       rec.ops.forEach(o => { if (o.op === 'cancel') delete this.amounts[o.cid + '|' + o.date]; });
     }
-    else this.tasks[rec.id] = true;
+    else this.tasks[rec.id] = { title: rec.title, loc: rec.loc, done: false };
     this.log.unshift({ t: new Date().toISOString(), text: (rec.ops ? 'Applied: ' : 'Task created: ') + rec.title });
   },
+  toggleTask(id) { const t = this.tasks[id]; if (t && typeof t === 'object') t.done = !t.done; },
   dismiss(rec) { this.dismissed[rec.id] = true; this.log.unshift({ t: new Date().toISOString(), text: 'Dismissed: ' + rec.title }); },
 
   manual(op, cid, date, amount) {

@@ -194,3 +194,16 @@ svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
   .popover { min-width: 0; width: min(92vw, 420px); }
 }
 @media (max-width: 600px) { .pk .loc, .ai { display: none; } .cal-sep { display: none; } .tip::after { width: 220px; } }
+
+/* ---------- agent notifications (planner, top-right corner) ---------- */
+.notifs { position: fixed; top: 16px; right: 16px; z-index: 35; width: min(340px, calc(100vw - 24px)); max-height: calc(100vh - 32px); overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+.toast { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--teal); border-radius: 8px; box-shadow: 0 8px 24px rgba(43,58,66,.16); padding: 9px 12px 11px; }
+.toast.high { border-left-color: var(--pink); }
+.toast.medium { border-left-color: var(--blue); }
+.toast-head { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.toast-x { margin-left: auto; border: 0; background: none; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.toast-x:hover { color: var(--ink); }
+.toast-title { display: block; border: 0; background: none; padding: 0; text-align: left; font: inherit; font-size: 12.5px; font-weight: 500; line-height: 1.4; color: var(--ink); cursor: pointer; }
+.toast-title:hover { text-decoration: underline; }
+.toast-acts { display: flex; gap: 6px; margin-top: 8px; }
+.notif-foot { display: flex; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }

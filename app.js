@@ -1,10 +1,10 @@
 /* app.js — UI for the SmartPlan prototype (plain JS, no build step) */
 
 const ui = {
-  tab: 'overview', loc: '', cid: null, modal: null, month: null,
+  tab: 'planner', loc: '', cid: null, modal: null, month: null,
   fLocs: [], fStreams: [], filterOpen: false,           // planner calendar filters (empty = show all)
   add: { open: false, loc: null, stream: null, amount: 1, date: null, msg: '' },
-  scrollAdd: false
+  scrollAdd: false, notifAll: false
 };
 const $ = s => document.querySelector(s);
 const eur = n => (n < 0 ? '−' : n > 0 ? '+' : '') + '€' + Math.abs(Math.round(n));
@@ -28,14 +28,6 @@ function impactChips(r) {
   return out.join('');
 }
 const typeLabel = { overflow: 'Overflow risk', risk: 'Missed-pickup risk', underfill: 'Cost saving', composition: 'Composition' };
-
-function recCard(r) {
-  return '<div class="card rec"><div class="body">' +
-    '<span class="badge ' + r.severity + '">' + r.severity + '</span> <span class="badge">' + typeLabel[r.type] + '</span>' +
-    '<h4>' + r.title + '</h4><p>' + r.reason + '</p><div>' + impactChips(r) + '</div></div>' +
-    '<div class="acts"><button class="btn" data-act="apply" data-id="' + r.id + '">' + (r.ops ? 'Apply to schedule' : 'Create task') + '</button>' +
-    '<button class="btn sec" data-act="dismiss" data-id="' + r.id + '">Dismiss</button></div></div>';
-}
 
 /* page heading, with the demo-controls widget directly underneath.
    Why the widget sits under the heading of every tab (not only Planner): the scenario is global
@@ -141,8 +133,7 @@ function viewOverview() {
       return '<td class="heat" style="background:rgba(234,91,125,' + (0.08 + a * 0.6).toFixed(2) + ')">' + pct(m.rate) + '</td>';
     }).join('') + '</tr>';
   }).join('') + '</table>';
-  const top = recs.filter(r => r.ops).slice(0, 3).map(recCard).join('') || '<p class="sub">No open schedule suggestions — the plan looks healthy.</p>';
-  return pageTop('Overview', 'What we expect the customer already sees today (orders, weight, separation, CO₂) plus the new layer: what to do next.', true) +
+    return pageTop('Report', 'What Seenons clients see today, plus ideas from competitors and the market, and how to turn them into next steps.', true) +
     '<div class="grid kpis">' +
     '<div class="card kpi"><div class="v">' + k.orders + '</div><div class="l">Total orders (12 weeks)</div></div>' +
     '<div class="card kpi"><div class="v">' + kg(k.weight) + '</div><div class="l">Total weight</div></div>' +
@@ -152,8 +143,7 @@ function viewOverview() {
     '<div class="card kpi ' + (over ? 'warn' : '') + '"><div class="v">' + over + '</div><div class="l">Containers at risk of overflow (14 d)</div></div></div>' +
     '<div class="grid cols2"><div class="card"><h3>Waste (kg) by stream</h3>' + streams + '</div>' +
     '<div class="card"><h3>Weight per week (kg)</h3>' + weekly + '</div></div>' +
-    '<div class="card" style="margin-bottom:14px"><h3>Missed-pickup rate by weekday <span class="small">— service-event data the agent learns from</span></h3>' + heat + '</div>' +
-    '<h3>Top suggestions from the agent</h3>' + top;
+    '<div class="card" style="margin-bottom:14px"><h3>Missed-pickup rate by weekday <span class="small">— service-event data the agent learns from</span></h3>' + heat + '</div>';
 }
 
 /* ----- planner ----- */
@@ -270,7 +260,24 @@ function viewPlanner() {
     '<span class="cal-sep"></span><button class="btn" data-act="toggleadd">+ Add pickup</button></div></div>' +
     addForm() + activeRow +
     '<div class="cal">' + head + cells + '</div>' +
-    '</div>' + plannerModal();
+    '</div>' + notifications() + plannerModal();
+}
+
+/* agent suggestions as small corner notifications on the planner (top 3; the rest behind "+N more") */
+function notifications() {
+  const recs = allRecs();
+  if (!recs.length) return '';
+  const shown = ui.notifAll ? recs : recs.slice(0, 3), rest = recs.length - 3;
+  const sched = recs.filter(r => r.ops).length;
+  const toasts = shown.map(r =>
+    '<div class="toast ' + r.severity + '"><div class="toast-head"><span class="ai-demo">AI</span><span class="small">' + typeLabel[r.type] + '</span>' +
+    '<button class="toast-x" data-act="dismiss" data-id="' + r.id + '" aria-label="Dismiss suggestion" title="Dismiss">×</button></div>' +
+    '<button class="toast-title" data-act="selghost" data-id="' + r.id + '" title="See why">' + r.title + '</button>' +
+    '<div class="toast-acts"><button class="btn sm" data-act="apply" data-id="' + r.id + '">' + (r.ops ? 'Apply' : 'Create task') + '</button>' +
+    '<button class="btn sec sm" data-act="selghost" data-id="' + r.id + '">Why?</button></div></div>').join('');
+  const foot = (rest > 0 ? '<button class="btn sec sm" data-act="notifmore">' + (ui.notifAll ? 'Show less' : '+' + rest + ' more') + '</button>' : '') +
+    (sched > 1 ? '<button class="btn sm" data-act="applyall">Apply all schedule changes</button>' : '');
+  return '<div class="notifs" aria-live="polite">' + toasts + (foot ? '<div class="notif-foot">' + foot + '</div>' : '') + '</div>';
 }
 
 function plannerModal() {
@@ -319,18 +326,6 @@ function viewForecast() {
     '<div class="card">' + chartSvg(c, true) + '</div>';
 }
 
-function viewAgent() {
-  const recs = viewRecs();
-  const sched = recs.filter(r => r.ops);
-  const net = sched.reduce((a, r) => ({ p: a.p + r.impact.pickups, c: a.c + r.impact.cost, co: a.co + r.impact.co2 }), { p: 0, c: 0, co: 0 });
-  const log = Model.log.map(l => '<li><span class="small">' + new Date(l.t).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) + '</span> ' + l.text + '</li>').join('') || '<li class="small">Nothing yet — apply a suggestion to see it here.</li>';
-  return pageTop('AI agent', 'Closes the loop: partner data → platform → agent → insight → <b>one click in the schedule</b>. Every suggestion shows the data behind it.', true) +
-    '<div class="card" style="margin-bottom:14px"><b>' + recs.length + ' open suggestions.</b> If all schedule changes are applied: ' + net.p + ' pickups, ' + eur(net.c) + ', ' + net.co.toFixed(1) + ' kg CO₂ (demo assumptions). ' +
-    (sched.length ? '<button class="btn sm" style="margin-left:8px" data-act="applyall">Apply all schedule changes</button>' : '') + '</div>' +
-    (recs.map(recCard).join('') || '<div class="card">All clear — no suggestions right now.</div>') +
-    '<div class="card"><h3>Activity log</h3><ul class="log">' + log + '</ul></div>';
-}
-
 function viewData() {
   const A = ASSUMPTIONS;
   const rows = containersInView().map(c => {
@@ -359,9 +354,7 @@ function viewData() {
 /* ---------------- render + events ---------------- */
 function render() {
   $('#nav').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === ui.tab));
-  const n = viewRecs().length;
-  $('#agentCount').textContent = n || '';
-  $('#view').innerHTML = { overview: viewOverview, planner: viewPlanner, forecast: viewForecast, agent: viewAgent, data: viewData }[ui.tab]();
+  $('#view').innerHTML = { report: viewOverview, planner: viewPlanner, forecast: viewForecast, data: viewData }[ui.tab]();
   if (ui.scrollAdd) {
     ui.scrollAdd = false;
     const el = document.querySelector('.addform');
@@ -397,14 +390,15 @@ function init() {
       if (r) { act === 'apply' ? Model.apply(r) : Model.dismiss(r); }
       ui.modal = null;
     } else if (act === 'applyall') {
-      viewRecs().filter(r => r.ops).forEach(() => {
-        const r = viewRecs().find(x => x.ops); if (r) Model.apply(r);
+      allRecs().filter(r => r.ops).forEach(() => {
+        const r = allRecs().find(x => x.ops); if (r) Model.apply(r);
       });
     } else if (act === 'selpk') ui.modal = { kind: 'pk', cid: d.cid, date: d.date };
     else if (act === 'selghost') ui.modal = { kind: 'ghost', id: d.id };
     else if (act === 'selday') ui.modal = { kind: 'day', date: d.date };
     else if (act === 'toggleadd') { ui.add.open = !ui.add.open; ui.add.msg = ''; ui.filterOpen = false; ui.scrollAdd = ui.add.open; }
     else if (act === 'setadd') { ui.add.open = true; ui.add.date = d.date; ui.add.msg = ''; ui.modal = null; ui.scrollAdd = true; }
+    else if (act === 'notifmore') ui.notifAll = !ui.notifAll;
     else if (act === 'scenario') Model.scenario = d.val;
     else if (act === 'togglefilter') ui.filterOpen = !ui.filterOpen;
     else if (act === 'clearfilter') { ui.fLocs = []; ui.fStreams = []; }

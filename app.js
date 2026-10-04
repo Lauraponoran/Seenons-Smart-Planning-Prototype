@@ -46,12 +46,15 @@ function pageHead(title, sub) {
   return '<div class="page-head"><div><h2>' + title + '</h2>' + (sub ? '<p class="sub">' + sub + '</p>' : '') + '</div></div>' + eventWidget();
 }
 
-/* widget: event picker + Reset demo; picking an event reveals the info line (effects + overflow count) inside it */
+/* widget: a slim dashed strip (so it reads as prototype tooling, not product UI) with the events as a
+   segmented control — one click per scenario instead of a dropdown — plus Reset demo.
+   Picking an event reveals the info line (effects + overflow count) inside the strip. */
 function eventWidget() {
-  const opts = Object.entries(SCENARIOS).map(([k, v]) => '<option value="' + k + '"' + (k === Model.scenario ? ' selected' : '') + '>' + v.label + '</option>').join('');
-  return '<div class="card sim-card"><div class="sim-title">Demo controls</div>' +
-    '<div class="sim-row"><label class="ev-inline">Simulate an event<select id="scSel">' + opts + '</select></label>' +
-    '<button class="btn sec" data-act="reset">Reset demo</button></div>' + eventLine() + '</div>';
+  const seg = Object.entries(SCENARIOS).map(([k, v]) =>
+    '<button class="seg-btn' + (k === Model.scenario ? ' on' : '') + '" data-act="scenario" data-val="' + k + '" aria-pressed="' + (k === Model.scenario) + '" title="' + v.label + '">' + (v.short || v.label) + '</button>').join('');
+  return '<div class="sim-card"><div class="sim-row"><span class="sim-label">Simulate an event</span>' +
+    '<div class="seg" role="group" aria-label="Simulate an event">' + seg + '</div>' +
+    '<button class="btn sec sm sim-reset" data-act="reset">↺ Reset demo</button></div>' + eventLine() + '</div>';
 }
 
 /* one-line summary of the simulated event: effects on waste volume and the agent's reaction */
@@ -71,9 +74,10 @@ function scenarioEffects() {
 function eventLine() {
   if (Model.scenario === 'normal') return '';
   const sc = SCENARIOS[Model.scenario], fx = scenarioEffects(), n = fx.now.overflow;
-  const effects = Object.entries(sc.mult).map(([t, m]) => t + ' ' + pctDelta(m)).join(' · ');
-  return '<div class="ev-line"><b>' + sc.label + '</b><span>' + effects + '</span>' +
-    '<span>' + n + ' overflow risk' + (n === 1 ? '' : 's') + ' (' + fx.base.overflow + ' normally)</span></div>';
+  // one chip per location type: pink when volume goes up, green when it goes down, grey when unchanged
+  const effects = Object.entries(sc.mult).map(([t, m]) => '<span class="chip ' + (m > 1 ? 'up' : m < 1 ? 'down' : '') + '">' + t + ' ' + pctDelta(m) + '</span>').join('');
+  return '<div class="ev-line"><span class="ev-name">' + sc.label + '</span>' + effects +
+    '<span class="chip ' + (n > fx.base.overflow ? 'bad' : '') + '">' + n + ' overflow risk' + (n === 1 ? '' : 's') + ' (' + fx.base.overflow + ' normally)</span></div>';
 }
 
 /* heading + widget (+ location select on pages that filter by one location) */
@@ -253,10 +257,10 @@ function viewPlanner() {
     '<div class="card cal-card">' +
     '<div class="cal-toolbar"><div class="month-nav"><button class="nav" data-act="monthprev" aria-label="Previous month">‹</button><button class="nav" data-act="monthnext" aria-label="Next month">›</button>' +
     '<b class="month-name">' + monthName + '</b></div>' +
-    // Today sits right beside Filter and is blue so the two buttons read as different things (navigate vs. narrow down)
+    // one control panel: navigate (blue Today) · narrow down (outlined Filter) · create (pink Add pickup, the primary action, last)
     '<div class="cal-actions"><button class="btn blue" data-act="monthtoday">Today</button>' +
-    '<div class="filter-wrap"><button class="btn sec" data-act="togglefilter">Filter' + (nFilters ? '<span class="count">' + nFilters + '</span>' : '') + ' ▾</button>' + filterPanel() + '</div></div></div>' +
-    '<div class="add-row"><button class="btn" data-act="toggleadd">+ Add pickup</button></div>' +
+    '<div class="filter-wrap"><button class="btn sec" data-act="togglefilter">Filter' + (nFilters ? '<span class="count">' + nFilters + '</span>' : '') + ' ▾</button>' + filterPanel() + '</div>' +
+    '<span class="cal-sep"></span><button class="btn" data-act="toggleadd">+ Add pickup</button></div></div>' +
     addForm() + activeRow +
     '<div class="cal">' + head + cells + '</div>' +
     '<p class="foot-key">Colour = waste type · tag = location · dashed <span class="ai-demo">AI</span> = suggestion from the agent · pink day = public holiday · blue label = notable date</p></div>' + plannerModal();
@@ -394,6 +398,7 @@ function init() {
     else if (act === 'selday') ui.modal = { kind: 'day', date: d.date };
     else if (act === 'toggleadd') { ui.add.open = !ui.add.open; ui.add.msg = ''; ui.filterOpen = false; ui.scrollAdd = ui.add.open; }
     else if (act === 'setadd') { ui.add.open = true; ui.add.date = d.date; ui.add.msg = ''; ui.modal = null; ui.scrollAdd = true; }
+    else if (act === 'scenario') Model.scenario = d.val;
     else if (act === 'togglefilter') ui.filterOpen = !ui.filterOpen;
     else if (act === 'clearfilter') { ui.fLocs = []; ui.fStreams = []; }
     else if (act === 'rmfilter') toggleIn(d.kind === 'loc' ? ui.fLocs : ui.fStreams, d.val, false);
@@ -431,8 +436,7 @@ function init() {
 
   $('#view').addEventListener('change', e => {
     const t = e.target, id = t.id;
-    if (id === 'scSel') { Model.scenario = t.value; render(); }
-    else if (id === 'locSel') { ui.loc = t.value; ui.modal = null; render(); }
+    if (id === 'locSel') { ui.loc = t.value; ui.modal = null; render(); }
     else if (id === 'chartSel') { ui.cid = t.value; render(); }
     else if (t.dataset.fill) { Model.fillOverride[t.dataset.fill] = +t.value; render(); }
     else if (t.dataset.filter) { toggleIn(t.dataset.filter === 'loc' ? ui.fLocs : ui.fStreams, t.value, t.checked); render(); }

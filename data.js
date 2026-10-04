@@ -51,12 +51,13 @@ function missProbability(locId, weekday) {
 const MISS_REASONS = ['Container blocked', 'Truck capacity', 'Access locked', 'No driver available', 'Wrong container placed'];
 
 // Demand scenarios = multipliers applied to the forecast fill rate, per location type
+// (`short` is the button label in the Demo controls strip, `label` the full name used in text)
 const SCENARIOS = {
-  normal:    { label: 'No event (normal week)', note: '',                                                        mult: { 'Retail': 1.0,  'Office': 1.0,  'Food & Beverage': 1.0 } },
-  blackfri:  { label: 'Black Friday week',      note: 'Retail volumes of packaging and paper spike.',            mult: { 'Retail': 1.6,  'Office': 1.0,  'Food & Beverage': 1.15 } },
-  sinter:    { label: 'Sinterklaas season',     note: 'Gift wrapping drives paper and residual in retail.',      mult: { 'Retail': 1.45, 'Office': 0.95, 'Food & Beverage': 1.2 } },
-  xmas:      { label: 'Christmas peak',         note: 'Retail and hospitality peak, offices are quiet.',         mult: { 'Retail': 1.5,  'Office': 0.6,  'Food & Beverage': 1.35 } },
-  summer:    { label: 'Summer holiday dip',     note: 'Offices run at reduced capacity, hospitality is busy.',   mult: { 'Retail': 0.9,  'Office': 0.55, 'Food & Beverage': 1.3 } }
+  normal:    { short: 'No event', label: 'No event (normal week)', note: '',                                                        mult: { 'Retail': 1.0,  'Office': 1.0,  'Food & Beverage': 1.0 } },
+  blackfri:  { short: 'Black Friday', label: 'Black Friday week',      note: 'Retail volumes of packaging and paper spike.',            mult: { 'Retail': 1.6,  'Office': 1.0,  'Food & Beverage': 1.15 } },
+  sinter:    { short: 'Sinterklaas', label: 'Sinterklaas season',     note: 'Gift wrapping drives paper and residual in retail.',      mult: { 'Retail': 1.45, 'Office': 0.95, 'Food & Beverage': 1.2 } },
+  xmas:      { short: 'Christmas', label: 'Christmas peak',         note: 'Retail and hospitality peak, offices are quiet.',         mult: { 'Retail': 1.5,  'Office': 0.6,  'Food & Beverage': 1.35 } },
+  summer:    { short: 'Summer dip', label: 'Summer holiday dip',     note: 'Offices run at reduced capacity, hospitality is busy.',   mult: { 'Retail': 0.9,  'Office': 0.55, 'Food & Beverage': 1.3 } }
 };
 
 // Business assumptions used for impact estimates (editable)

@@ -85,23 +85,32 @@ svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
 .fc-head { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 8px 0 14px; }
 
 /* ---------- demo-controls widget (under the page heading) + one-line event summary ---------- */
-.sim-card { padding: 14px 18px; margin-bottom: 14px; }
-.sim-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--teal); margin-bottom: 8px; }
-.sim-row { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; }
-.sim-card .ev-line { margin: 12px 0 0; }
-.ev-inline { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
-.ev-inline select { padding: 7px 12px; border-radius: 999px; }
-.ev-line { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; font-size: 13px; color: var(--muted); background: var(--pink-l); border-radius: 12px; padding: 8px 14px; margin-bottom: 14px; }
-.ev-line b { color: var(--pink-d); }
+/* slim dashed strip: reads as prototype tooling, not product UI */
+.sim-card { background: rgba(255,255,255,.55); border: 1.5px dashed #C3CEC9; border-radius: 16px; padding: 10px 14px; margin-bottom: 14px; }
+.sim-row { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; }
+.sim-label { font-size: 12px; font-weight: 500; color: var(--muted); }
+.sim-reset { margin-left: auto; }
+/* segmented control (iOS / Linear style): the active scenario is a raised white pill */
+.seg { display: inline-flex; flex-wrap: wrap; gap: 2px; background: #E6ECE7; border-radius: 999px; padding: 3px; }
+.seg-btn { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; padding: 5px 14px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.seg-btn:hover:not(.on) { color: var(--navy); background: rgba(255,255,255,.55); }
+.seg-btn.on { background: #fff; color: var(--navy); font-weight: 600; box-shadow: 0 1px 3px rgba(31,78,90,.2); }
+/* event info line: name pill + one chip per effect (replaces the old pink band) */
+.ev-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.ev-name { background: var(--pink); color: #fff; font-size: 12px; font-weight: 600; padding: 2px 12px; border-radius: 99px; }
+.ev-line .chip { margin: 0; }
 
 /* ---------- calendar card ---------- */
 .cal-card { padding: 16px 18px 18px; }
-.cal-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; }
+/* calendar control panel: month navigation left, Today · Filter · + Add pickup right */
+.cal-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-bottom: 14px; padding: 8px 10px; background: #F6F7F3; border: 1px solid var(--line); border-radius: 16px; }
 .month-nav { display: flex; align-items: center; gap: 8px; }
 .month-name { font-size: 18px; min-width: 150px; color: var(--navy); }
 .nav { width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid var(--line); background: #fff; font-size: 20px; line-height: 1; cursor: pointer; color: var(--navy); }
 .nav:hover { background: var(--teal-l); }
-.cal-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.cal-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+.cal-actions .btn { padding: 7px 18px; font-size: 13.5px; }
+.cal-sep { width: 1px; height: 22px; background: var(--line); margin: 0 2px; }
 .filter-wrap { position: relative; }
 .count { background: var(--pink); color: #fff; border-radius: 99px; padding: 0 7px; font-size: 11px; margin-left: 6px; }
 .popover { position: absolute; right: 0; top: calc(100% + 8px); z-index: 15; background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 10px 30px rgba(31,78,90,.2); padding: 16px 18px; display: flex; flex-wrap: wrap; gap: 14px 34px; min-width: 480px; }
@@ -111,7 +120,6 @@ svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
 .opt input { accent-color: var(--pink); width: 16px; height: 16px; }
 .pop-foot { width: 100%; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--line); padding-top: 12px; }
 .linkbtn { background: none; border: 0; color: var(--navy); text-decoration: underline; cursor: pointer; font: inherit; font-size: 13px; padding: 0; }
-.add-row { margin: 0 0 14px; }
 .foot-key { margin: 12px 0 0; font-size: 12px; color: var(--muted); }
 .active-filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; font-size: 12px; color: var(--muted); }
 .fchip { border: 0; background: var(--navy); color: #fff; border-radius: 99px; padding: 3px 12px; font: inherit; font-size: 12px; cursor: pointer; }
@@ -185,4 +193,4 @@ svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
   .ai { font-size: 8px; padding: 0 4px; }
   .popover { min-width: 0; width: min(92vw, 420px); }
 }
-@media (max-width: 600px) { .pk .loc, .ai { display: none; } }
+@media (max-width: 600px) { .pk .loc, .ai { display: none; } .cal-sep { display: none; } .sim-reset { margin-left: 0; } }

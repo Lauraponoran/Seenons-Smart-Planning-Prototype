@@ -8,6 +8,21 @@ const ui = {
 };
 const $ = s => document.querySelector(s);
 const defFrom = () => iso(addDays(Model.today, -(HISTORY_DAYS - 1))), defTo = () => iso(Model.today);
+const baseRange = () => Model.scenarioRange(Model.scenario) || { from: defFrom(), to: defTo() };
+function setScenario(v) {            // holiday simulator: the Report and the planner jump to the event's dates
+  Model.scenario = v;
+  const r = baseRange(); ui.from = r.from; ui.to = r.to;
+  if (v === 'normal') ui.month = null; else { const d = parseIso(r.from); ui.month = { y: d.getFullYear(), m: d.getMonth() }; }
+}
+function scenarioBanner(planner) {
+  if (Model.scenario === 'normal') return '';
+  const sc = SCENARIOS[Model.scenario], r = Model.scenarioRange(Model.scenario);
+  const eff = Object.entries(sc.mult).map(([t, m]) => t + ' ' + pctDelta(m)).join(' · ');
+  return '<div class="sim-banner"><div><b>Simulated: ' + sc.label + '</b> · ' + dShort(r.from) + ' – ' + dShort(r.to) +
+    '<br><span class="small">' + (planner ? 'Highlighted on the calendar. The agent’s forecast uses these assumptions: ' + eff + '.'
+      : 'Charts show projected values from our demo assumptions (' + eff + '). The missed-pickup pattern comes from the last 12 weeks.') + '</span></div>' +
+    '<button class="btn sec sm" data-act="scenario" data-val="normal">Back to real data</button></div>';
+}
 const eur = n => (n < 0 ? '−' : n > 0 ? '+' : '') + '€' + Math.abs(Math.round(n));
 const kg = n => Math.round(n).toLocaleString('en-GB') + ' kg';
 const pct = n => Math.round(n * 100) + '%';
@@ -89,11 +104,12 @@ const dShort = s => parseIso(s).toLocaleDateString('en-GB', { day: 'numeric', mo
 function toolbar(withDate) {
   const sel = '<label>Location<select id="locSel"><option value="">All locations</option>' +
     LOCATIONS.map(l => '<option value="' + l.id + '"' + (l.id === ui.loc ? ' selected' : '') + '>' + l.name + '</option>').join('') + '</select></label>';
-  const lim = ' min="' + iso(addDays(Model.today, -HISTORY_DAYS)) + '" max="' + iso(Model.today) + '"';
-  const isDef = ui.from === defFrom() && ui.to === defTo();
+  const br = baseRange(), simOn = Model.scenario !== 'normal';
+  const lim = simOn ? ' min="' + br.from + '" max="' + br.to + '"' : ' min="' + iso(addDays(Model.today, -HISTORY_DAYS)) + '" max="' + iso(Model.today) + '"';
+  const isDef = ui.from === br.from && ui.to === br.to;
   const dates = !withDate ? '' :
     '<label>From<input type="date" id="fromSel"' + lim + ' value="' + ui.from + '"></label><label>To<input type="date" id="toSel"' + lim + ' value="' + ui.to + '"></label>' +
-    (isDef ? '' : '<button class="linkbtn" style="align-self:center" data-act="cleardates">Reset to last 12 weeks</button>');
+    (isDef ? '' : '<button class="linkbtn" style="align-self:center" data-act="cleardates">' + (simOn ? 'Reset to event dates' : 'Reset to last 12 weeks') + '</button>');
   return '<div class="toolbar">' + sel + dates + '</div>';
 }
 function pageTop(title, sub, withLoc, withDate) {
@@ -177,6 +193,42 @@ function chartWeekStack(bd) {
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Weight over time">' + s + '</svg>' + legendOf(keys.map(k => [STREAMS[k].color, STREAMS[k].label]));
 }
 
+function chartFill(cs) {
+  const A = ASSUMPTIONS, W = 520, rowH = 30, L = 116, R = 14, H = cs.length * rowH + 26, MAX = 120;
+  const x = v => L + Math.min(v, MAX) / MAX * (W - L - R);
+  let s = '';
+  [0, 25, 50, 75, 100].forEach(v => { s += '<line x1="' + x(v) + '" x2="' + x(v) + '" y1="0" y2="' + (H - 22) + '" stroke="' + COL.grid + '"/><text x="' + x(v) + '" y="' + (H - 6) + '" text-anchor="middle">' + v + '%</text>'; });
+  s += '<line x1="' + x(A.alertFill) + '" x2="' + x(A.alertFill) + '" y1="0" y2="' + (H - 22) + '" stroke="' + COL.alert + '" stroke-dasharray="5 4"/>';
+  let hits = '';
+  cs.forEach((c, i) => {
+    const y = i * rowH + 3, cur = Model.currentFill(c), sim = Model.simulate(c), pk = sim.reduce((a, p) => p.fill > a.fill ? p : a, sim[0]), over = pk.fill >= A.alertFill;
+    const tt = '<b>' + Model.contLabel(c) + '</b><br>Now: <b>' + Math.round(cur) + '%</b><br>14-day peak: <b>' + Math.round(Math.min(pk.fill, 130)) + '%</b> on ' + fmtDate(pk.date) + (over ? '<br>Over the overflow threshold' : '');
+    s += '<text x="' + (L - 8) + '" y="' + (y + 17) + '" text-anchor="end">' + STREAM_SHORT[c.stream] + ' · ' + locOf(c).code + '</text>' +
+      '<rect x="' + L + '" y="' + (y + 3) + '" width="' + Math.max(1, x(cur) - L) + '" height="9" fill="' + STREAMS[c.stream].color + '" style="pointer-events:none"/>' +
+      '<rect x="' + L + '" y="' + (y + 14) + '" width="' + Math.max(1, x(pk.fill) - L) + '" height="9" fill="' + (over ? COL.alert : STREAMS[c.stream].color) + '" fill-opacity="' + (over ? '.75' : '.4') + '" style="pointer-events:none"/>';
+    hits += '<rect class="hit" data-tt="' + escA(tt) + '" x="0" y="' + y + '" width="' + W + '" height="' + (rowH - 4) + '"/>';
+  });
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Container fill level now and forecast peak">' + s + hits + '</svg>';
+}
+
+function chartComposition(cs) {
+  const rs = cs.filter(c => c.stream === 'residual' && c.audit != null);
+  if (!rs.length) return '<p class="small">No scanned residual containers in this selection.</p>';
+  const W = 520, rowH = 36, L = 150, R = 14, H = rs.length * rowH + 26, x = v => L + v / 100 * (W - L - R);
+  let s = '';
+  [0, 25, 50, 75, 100].forEach(v => { s += '<line x1="' + x(v) + '" x2="' + x(v) + '" y1="0" y2="' + (H - 22) + '" stroke="' + COL.grid + '"/><text x="' + x(v) + '" y="' + (H - 6) + '" text-anchor="middle">' + v + '%</text>'; });
+  rs.forEach((c, i) => {
+    const y = i * rowH + 6, name = locOf(c).name;
+    const tt = '<b>' + name + '</b><br>Recyclable material in residual: <b>' + c.audit + '%</b><br>Paper, cardboard and packaging that could be separated<br>Everything else: ' + (100 - c.audit) + '%';
+    s += '<text x="' + (L - 8) + '" y="' + (y + 16) + '" text-anchor="end">' + name + '</text>' +
+      '<rect class="seg" data-tt="' + escA(tt) + '" x="' + x(0) + '" y="' + y + '" width="' + (x(c.audit) - x(0)) + '" height="22" fill="' + COL.teal + '"/>' +
+      '<rect class="seg" data-tt="' + escA(tt) + '" x="' + x(c.audit) + '" y="' + y + '" width="' + (x(100) - x(c.audit)) + '" height="22" fill="#C9D6D9"/>';
+  });
+  s += '<line x1="' + x(20) + '" x2="' + x(20) + '" y1="0" y2="' + (H - 22) + '" stroke="' + COL.alert + '" stroke-dasharray="5 4"/>';
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Recyclables found in residual">' + s + '</svg>' +
+    legendOf([[COL.teal, 'Recyclable (could be separated)'], ['#C9D6D9', 'True residual']]) + '<p class="small" style="margin:-6px 0 0">Dashed line: 20% triggers an audit task.</p>';
+}
+
 function chartRates(bd) {
   const bk = bd.buckets.list, n = bk.length, W = 520, H = 220, L = 42, R = 10, T = 10, B = 24, step = labelEvery(n);
   const x = i => L + (i + 0.5) / n * (W - L - R), y = v => T + (1 - v) * (H - T - B), bw = (W - L - R) / n;
@@ -217,7 +269,7 @@ function notebook() {
   const items = Object.entries(Model.tasks).filter(([, t]) => t && typeof t === 'object');
   const open = items.filter(([, t]) => !t.done).length;
   const row = ([id, t]) => {
-    const tip = t.reason ? t.reason + (t.note ? ' ' + t.note : '') : 'Created from a recommended action.';
+    const tip = t.todo && t.why ? '<b>What to do</b><br>' + t.todo + '<br><br><b>Why</b><br>' + t.why : (t.reason || 'Created from a recommended action.');
     return '<div class="nb-task' + (t.done ? ' done' : '') + '"><label><input type="checkbox" data-task="' + id + '"' + (t.done ? ' checked' : '') + '><span>' + t.title + '</span></label>' +
       '<span class="info" tabindex="0" role="note" aria-label="Why this task" data-tt="' + escA(tip) + '">i</span></div>';
   };
@@ -247,18 +299,21 @@ function viewOverview() {
   const kpi = (v, l, warn, tt) => '<div class="card kpi ' + (warn ? 'warn' : '') + '"' + (tt ? ' data-tt="' + escA(tt) + '"' : '') + '><div class="v">' + v + '</div><div class="l">' + l + '</div></div>';
   return pageHead('Report', 'What Seenons clients see today, plus recommended next steps.') +
     '<div class="report-panel">' + toolbar(true) +
-    '<h3 class="sec-h">Summary Statistics</h3>' +
+    scenarioBanner() + '<h3 class="sec-h">Summary Statistics</h3>' +
     '<div class="grid kpis">' + kpi(k.orders, 'Orders', false, 'Total orders picked up in this period.') + kpi(kg(k.weight), 'Weight', false, 'Total weight collected in this period.') +
     kpi(pct(k.separation), 'Separation rate', false, 'Source separation rate: share of the weight that was not residual.') +
     kpi(pct(k.resource), 'Resource saved', false, 'Resource saved rate: share of the weight that was recycled or recovered (demo factors).') +
     kpi(kg(k.co2), 'CO₂ saved', false, 'CO₂ saved by recycling, using demo factors per stream.') +
     kpi(pct(k.missRate), 'Missed pickups', k.missRate > 0.06, k.missed + ' of ' + k.pickups + ' scheduled pickups were missed in this period.') +
     kpi(k.full, 'Full at pickup', k.full > 0, 'Pickups where the container was already at least ' + ASSUMPTIONS.alertFill + '% full, so it was at risk of overflowing.') + '</div>' +
-    '<h3 class="sec-h">Waste details</h3>' +
+    '<h3 class="sec-h">Waste details <span class="tag">Seenons today</span></h3>' +
     '<div class="grid cols2"><div class="card"><h3>Weight (kg) by stream and location</h3><p class="small cap">Hover a bar for amounts.</p>' + chartStreamLoc(bd, locs) + '</div>' +
     '<div class="card"><h3>Weight (kg) over time</h3>' + caption(bd.buckets) + chartWeekStack(bd) + '</div></div>' +
     '<div class="grid cols2"><div class="card"><h3>Source separation rate vs resource saved rate</h3>' + caption(bd.buckets) + chartRates(bd) + '</div>' +
-    '<div class="card"><h3>Missed-pickup rate by weekday <span class="small">— service-event data the agent learns from</span></h3><p class="small cap">Hover a cell for the number of missed pickups.</p>' + heat + '</div></div>' +
+    '<div class="card"><h3>Missed-pickup rate by weekday <span class="tag new">New · service events</span></h3><p class="small cap">Hover a cell for the number of missed pickups.</p>' + heat + '</div></div>' +
+    '<h3 class="sec-h">Smart data <span class="tag new">New · what we recommend collecting</span></h3>' +
+    '<div class="grid cols2"><div class="card"><h3>Container fill level: now and 14-day forecast <span class="tag new">New · IoT sensors</span></h3><p class="small cap">Live sensor readings (simulated). The faded bar is the forecast peak before the next pickup; red means over ' + ASSUMPTIONS.alertFill + '%.</p>' + chartFill(containersInView()) + '</div>' +
+    '<div class="card"><h3>Recyclables found in residual <span class="tag new">New · composition scan</span></h3><p class="small cap">Share of each residual container that could have been separated, from the last (simulated) scan.</p>' + chartComposition(containersInView()) + '</div></div>' +
     '<h3 class="sec-h">Recommended actions <span class="small">(' + acts.length + ')</span></h3>' +
     (acts.map(taskCard).join('') || '<p class="sub">No open recommendations for this selection.</p>') + '</div>';
 }
@@ -347,7 +402,7 @@ function viewPlanner() {
   const last = new Date(ui.month.y, ui.month.m + 1, 0);
   const start = mondayOf(first);
   const weeks = Math.ceil(((last - start) / 864e5 + 1) / 7);
-  const todayKey = iso(Model.today);
+  const todayKey = iso(Model.today), scen = Model.scenarioRange(Model.scenario);
   const head = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => '<div class="wk">' + d + '</div>').join('');
   let cells = '';
   for (let i = 0; i < weeks * 7; i++) {
@@ -358,7 +413,7 @@ function viewPlanner() {
     const holLabel = hol ? '<span class="hol ' + hol.kind + '" title="' + hol.name + (hol.kind === 'public' ? ' (public holiday)' : '') + '">' + hol.name + '</span>' : '';
     const maxChips = hol ? 2 : 3;            // the holiday label takes one line of the square cell
     const more = all.length > maxChips ? '<button class="more" data-act="selday" data-date="' + key + '">+' + (all.length - maxChips) + ' more</button>' : '';
-    cells += '<div class="day ' + (key === todayKey ? 'today ' : '') + (past ? 'past ' : '') + (other ? 'other ' : '') + (hol && hol.kind === 'public' ? 'hol-public' : '') + '"><div class="dh"><b>' + date.getDate() + '</b>' +
+    cells += '<div class="day ' + (key === todayKey ? 'today ' : '') + (past ? 'past ' : '') + (other ? 'other ' : '') + (scen && key >= scen.from && key <= scen.to ? 'sim-period ' : '') + (hol && hol.kind === 'public' ? 'hol-public' : '') + '"><div class="dh"><b>' + date.getDate() + '</b>' +
       (past ? '' : '<button class="plus" title="Add pickup on this day" data-act="setadd" data-date="' + key + '">+</button>') + '</div>' + holLabel + all.slice(0, maxChips).join('') + more + '</div>';
   }
   const monthName = first.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
@@ -375,7 +430,7 @@ function viewPlanner() {
     '<div class="cal-actions"><button class="btn blue" data-act="monthtoday">Today</button>' +
     '<div class="filter-wrap"><button class="btn sec" data-act="togglefilter">Filter' + (nFilters ? '<span class="count">' + nFilters + '</span>' : '') + ' ▾</button>' + filterPanel() + '</div>' +
     '<span class="cal-sep"></span><button class="btn" data-act="toggleadd">+ Add pickup</button></div></div>' +
-    addForm() + activeRow +
+    addForm() + activeRow + scenarioBanner(true) +
     '<div class="cal">' + head + cells + '</div>' +
     '</div>' + notifications() + plannerModal();
 }
@@ -459,6 +514,7 @@ function toggleIn(arr, v, on) {
 function init() {
   Model.load();
   Model.init();
+  if (Model.scenario !== 'normal') { const r = baseRange(); ui.from = r.from; ui.to = r.to; }
   $('#nav').onclick = e => { const b = e.target.closest('button'); if (b) { ui.tab = b.dataset.tab; ui.filterOpen = false; ui.modal = null; render(); } };
 
   $('#view').addEventListener('click', e => {
@@ -484,11 +540,11 @@ function init() {
     else if (act === 'toggleadd') { ui.add.open = !ui.add.open; ui.add.msg = ''; ui.filterOpen = false; ui.scrollAdd = ui.add.open; }
     else if (act === 'setadd') { ui.add.open = true; ui.add.date = d.date; ui.add.msg = ''; ui.modal = null; ui.scrollAdd = true; }
     else if (act === 'notiftoggle') ui.notifHidden = !ui.notifHidden;
-    else if (act === 'cleardates') { ui.from = defFrom(); ui.to = defTo(); }
+    else if (act === 'cleardates') { const r = baseRange(); ui.from = r.from; ui.to = r.to; }
     else if (act === 'simtoggle') ui.simOpen = !ui.simOpen;
     else if (act === 'notetoggle') ui.noteOpen = !ui.noteOpen;
     else if (act === 'notifmore') ui.notifAll = !ui.notifAll;
-    else if (act === 'scenario') Model.scenario = d.val;
+    else if (act === 'scenario') setScenario(d.val);
     else if (act === 'togglefilter') ui.filterOpen = !ui.filterOpen;
     else if (act === 'clearfilter') { ui.fLocs = []; ui.fStreams = []; }
     else if (act === 'rmfilter') toggleIn(d.kind === 'loc' ? ui.fLocs : ui.fStreams, d.val, false);

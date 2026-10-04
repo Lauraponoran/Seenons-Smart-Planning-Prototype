@@ -50,6 +50,13 @@ function holidaysFor(y) {              // -> { 'YYYY-MM-DD': { name, kind } }
   const h = {};
   const put = (d, name, kind) => { h[iso(d)] = { name, kind }; };
   const easter = easterSunday(y);
+  const nthSun = (m, n) => new Date(y, m, 1 + ((7 - new Date(y, m, 1).getDay()) % 7) + 7 * (n - 1));   // n-th Sunday of a month
+  put(new Date(y, 1, 14), "Valentine's Day", 'event');
+  put(nthSun(4, 2), "Mother's Day", 'event');
+  put(nthSun(5, 3), "Father's Day", 'event');
+  put(new Date(y, 9, 31), 'Halloween', 'event');
+  put(new Date(y, 11, 24), 'Christmas Eve', 'event');
+  put(new Date(y, 11, 31), "New Year's Eve", 'event');
   put(new Date(y, 0, 1), "New Year's Day", 'public');
   put(addDays(easter, -2), 'Good Friday', 'event');          // not an official public holiday in NL
   put(easter, 'Easter Sunday', 'public');
@@ -192,17 +199,56 @@ const Model = {
     return out;
   },
   missRate(locId, weekday, from, to) {
+    if (this.scenario !== 'normal') { from = ''; to = ''; }   // the pattern is learned from real history, not from the simulated dates
     const ev = this.hist.events.filter(e => e.loc === locId && e.weekday === weekday && (!from || e.date >= from) && (!to || e.date <= to));
     if (ev.length < 5) return { rate: 0, n: ev.length };
     return { rate: ev.filter(e => !e.picked).length / ev.length, n: ev.length };
   },
 
+  /* ---------- holiday simulator: the dates each event covers (next occurrence) ---------- */
+  scenarioRange(key) {
+    if (!key || key === 'normal') return null;
+    const mk = y => {
+      const thu4 = 1 + ((4 - new Date(y, 10, 1).getDay() + 7) % 7) + 21;       // 4th Thursday of November
+      const mon = addDays(new Date(y, 10, thu4 + 1), -4);                       // Monday of Black Friday week
+      return { blackfri: [mon, addDays(mon, 6)], sinter: [new Date(y, 10, 15), new Date(y, 11, 5)],
+               xmas: [new Date(y, 11, 15), new Date(y, 11, 26)], summer: [new Date(y, 6, 15), new Date(y, 7, 31)] }[key];
+    };
+    let r = mk(this.today.getFullYear());
+    if (r[1] < this.today) r = mk(this.today.getFullYear() + 1);
+    return { from: iso(r[0]), to: iso(r[1]) };
+  },
+
+  /* pickup events the Report is built from: real history, or (event simulator on) a projection for the event dates */
+  events() {
+    if (this.scenario === 'normal') return this.hist.events;
+    const r = this.scenarioRange(this.scenario);
+    return this.projection(r.from, r.to);
+  },
+  projection(from, to) {
+    const out = [], s = parseIso(from), e = parseIso(to);
+    for (const c of CONTAINERS) {
+      const f = WEEKDAY_FACTORS[this.loc(c.loc).type], avg = f.reduce((a, b) => a + b, 0) / 7, rate = this.measuredRate(c);
+      let fill = 25;
+      for (let d = addDays(s, -14); d <= e; d = addDays(d, 1)) {
+        const inRange = d >= s, wd = d.getDay();
+        fill = Math.min(130, fill + rate * (f[wd] / avg) * (inRange ? this.scenarioMult(c) : 1));
+        if (c.days.includes(wd)) {
+          if (inRange) out.push({ date: iso(d), cid: c.id, loc: c.loc, weekday: wd, picked: true, fillAtPickup: fill,
+            weight: Math.round(Math.min(fill, 100) / 100 * c.cap * STREAMS[c.stream].kgPerL) });
+          fill = 2;
+        }
+      }
+    }
+    return out;
+  },
+
   /* ---------- Report time axis: follows the selected From / To dates (default: last 12 weeks) ---------- */
   buckets(from, to) {
-    const e = to ? parseIso(to) : this.today;
-    let s = from ? parseIso(from) : addDays(this.today, -(HISTORY_DAYS - 1));
-    const lo = addDays(this.today, -HISTORY_DAYS);
-    if (s < lo) s = lo;
+    const sr = this.scenarioRange(this.scenario);
+    const e = to ? parseIso(to) : (sr ? parseIso(sr.to) : this.today);
+    let s = from ? parseIso(from) : (sr ? parseIso(sr.from) : addDays(this.today, -(HISTORY_DAYS - 1)));
+    if (!sr) { const lo = addDays(this.today, -HISTORY_DAYS); if (s < lo) s = lo; }
     if (e < s) s = e;
     const n = Math.round((e - s) / 864e5) + 1, list = [];
     const dm = d => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
@@ -224,7 +270,7 @@ const Model = {
 
   /* ---------- chart series for the Report (same filters as kpis) ---------- */
   breakdown(locId, from, to) {
-    const ev = this.hist.events.filter(e => e.picked && (!locId || e.loc === locId) && (!from || e.date >= from) && (!to || e.date <= to));
+    const ev = this.events().filter(e => e.picked && (!locId || e.loc === locId) && (!from || e.date >= from) && (!to || e.date <= to));
     const bk = this.buckets(from, to);
     const sl = {}, weeks = bk.list.map(() => ({}));
     for (const k of Object.keys(STREAMS)) sl[k] = {};
@@ -239,10 +285,10 @@ const Model = {
 
   /* ---------- Report insights: recommended actions read straight from the graphs / heatmap ---------- */
   insights(locId, from, to) {
-    const A = ASSUMPTIONS, out = [];
+    const A = ASSUMPTIONS, out = [], sim = this.scenario !== 'normal', hf = sim ? '' : from, ht = sim ? '' : to;
     const DAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const num = n => Math.round(n).toLocaleString('en-GB');
-    const span = ((!from && !to) || (from === iso(addDays(this.today, -(HISTORY_DAYS - 1))) && to === iso(this.today))) ? 'over the last 12 weeks' : 'in the selected period';
+    const span = sim || ((!from && !to) || (from === iso(addDays(this.today, -(HISTORY_DAYS - 1))) && to === iso(this.today))) ? 'over the last 12 weeks' : 'in the selected period';
     const FIX = {
       'Wrong container placed': (d, s) => 'Make sure the ' + s.toLowerCase() + ' container is placed at the agreed pickup spot before the truck arrives on ' + d + 's, and label it clearly so the driver can find it.',
       'Container blocked':      (d)    => 'Keep the access route and pickup spot clear on ' + d + 's: mark the spot and brief site staff to leave it free.',
@@ -258,16 +304,18 @@ const Model = {
       for (let wd = 0; wd < 7; wd++) {
         const mr = this.missRate(L.id, wd, from, to);
         if (mr.rate < A.riskMissRate) continue;
-        const ev = this.hist.events.filter(e => e.loc === L.id && e.weekday === wd && (!from || e.date >= from) && (!to || e.date <= to));
+        const ev = this.hist.events.filter(e => e.loc === L.id && e.weekday === wd && (!hf || e.date >= hf) && (!ht || e.date <= ht));
         const missed = ev.filter(e => !e.picked);
         if (missed.length < 3) continue;          // 1–2 misses is noise, not a pattern
         const [reason, rn] = top(missed, e => e.reason), [cid] = top(missed, e => e.cid);
         const stream = STREAMS[this.cont(cid).stream].label, day = DAY[wd];
+        const why = missed.length + ' of ' + ev.length + ' ' + day + ' pickups at ' + L.name + ' were missed (' + Math.round(mr.rate * 100) + '%) ' + span + '. Most common reason: ' +
+          reason.toLowerCase() + ' (' + rn + '×); ' + stream.toLowerCase() + ' was hit most.';
+        const todo = FIX[reason] ? FIX[reason](day, stream) : 'Check with the site manager why ' + day + ' pickups are missed.';
         out.push({
           id: 'insight-miss|' + L.id + '|' + wd, type: 'missed', severity: mr.rate >= 0.2 ? 'high' : 'medium', loc: L.id, ops: null,
           title: 'Prevent missed pickups on ' + day + 's · ' + L.name,
-          reason: missed.length + ' of ' + ev.length + ' ' + day + ' pickups at ' + L.name + ' were missed (' + Math.round(mr.rate * 100) + '%) ' + span + '. Most common reason: ' +
-            reason.toLowerCase() + ' (' + rn + '×); ' + stream.toLowerCase() + ' was hit most. ' + (FIX[reason] ? FIX[reason](day, stream) : ''),
+          reason: why + ' ' + todo, why, todo,
           impact: { pickups: 0, cost: 0, co2: 0, note: 'Could avoid ~' + missed.length + ' repeat pickups (~€' + missed.length * A.pickupCost + ').' }
         });
       }
@@ -275,7 +323,7 @@ const Model = {
 
     /* 2) volume trend (weight-over-time chart): a stream that grew clearly in the latest weeks */
     const bd = this.breakdown(locId, from, to), W = bd.weeks, n = Math.min(4, Math.floor(W.length / 2));
-    if (!bd.buckets.daily && n >= 2) {
+    if (!sim && !bd.buckets.daily && n >= 2) {
       const sum = (arr, k) => arr.reduce((a, w) => a + (w[k] || 0), 0);
       const recent = W.slice(-n), prev = W.slice(-2 * n, -n);
       let best = null;
@@ -285,13 +333,14 @@ const Model = {
       }
       if (best) {
         const S = STREAMS[best.k];
+        const why = S.label + ' went from ' + num(best.p) + ' kg to ' + num(best.r) + ' kg compared with the ' + n + ' weeks before.';
+        const todo = best.k === 'residual'
+          ? 'Share a short separation reminder with staff or put a recycling bin closer to where the waste is produced.'
+          : 'Check that the container is big enough for the extra volume, or plan one more pickup a week, before it starts to overflow.';
         out.push({
           id: 'insight-trend|' + (locId || 'all') + '|' + best.k, type: 'trend', severity: 'medium', loc: locId || '', ops: null,
           title: S.label + ' volume up ' + Math.round(best.ch * 100) + '% in the last ' + n + ' weeks',
-          reason: S.label + ' went from ' + num(best.p) + ' kg to ' + num(best.r) + ' kg compared with the ' + n + ' weeks before. ' +
-            (best.k === 'residual'
-              ? 'More unsorted waste is ending up in residual: share a short separation reminder with staff or put a recycling bin closer to where the waste is produced.'
-              : 'Check that the container is big enough for the extra volume, or plan one more pickup a week, before it starts to overflow.'),
+          reason: why + ' ' + todo, why, todo,
           impact: { pickups: 0, cost: 0, co2: 0, note: 'Catches growth before it turns into overflow.' }
         });
       }
@@ -309,10 +358,12 @@ const Model = {
         const p = per[L.id]; if (!p || p.all < 100 || (locId && L.id !== locId)) continue;
         const sh = p.res / p.all;
         if (sh < avg + 0.1) continue;
+        const why = Math.round(sh * 100) + '% of what was collected at ' + L.name + ' is residual, against ' + Math.round(avg * 100) + '% across all locations. Residual recovers nothing and is the most expensive stream.';
+        const todo = 'Ask the site team what goes in the residual bin, then add or relabel a paper or plastic bin where the waste is produced.';
         out.push({
           id: 'insight-mix|' + L.id, type: 'mix', severity: 'low', loc: L.id, ops: null,
           title: 'Residual is ' + Math.round(sh * 100) + '% of the waste at ' + L.name,
-          reason: Math.round(sh * 100) + '% of what was collected at ' + L.name + ' is residual, against ' + Math.round(avg * 100) + '% across all locations. Residual recovers nothing and is the most expensive stream. Ask the site team what goes in the residual bin and add or relabel a paper or plastic bin where the waste is produced.',
+          reason: why + ' ' + todo, why, todo,
           impact: { pickups: 0, cost: 0, co2: 0, note: 'Shifts weight to streams that are recovered.' }
         });
       }
@@ -324,8 +375,10 @@ const Model = {
 
   /* ---------- KPIs from history ---------- */
   kpis(locId, from, to) {
-    const ev = this.hist.events.filter(e => (!locId || e.loc === locId) && (!from || e.date >= from) && (!to || e.date <= to));
+    const ev = this.events().filter(e => (!locId || e.loc === locId) && (!from || e.date >= from) && (!to || e.date <= to));
     const picked = ev.filter(e => e.picked);
+    // simulating: all projected pickups happen, so expected misses come from the historical miss rate per location and weekday
+    const simMiss = this.scenario === 'normal' ? 0 : Math.round(picked.reduce((a, e) => a + this.missRate(e.loc, e.weekday).rate, 0));
     const byStream = {};
     for (const k of Object.keys(STREAMS)) byStream[k] = 0;
     let co2 = 0, res = 0;
@@ -343,8 +396,8 @@ const Model = {
       if (idx >= 0 && idx < 12) weekly[idx] += e.weight;
     }
     return {
-      orders: picked.length, missed: ev.length - picked.length, full: ev.filter(e => e.fillAtPickup >= ASSUMPTIONS.alertFill).length, pickups: ev.length,
-      missRate: ev.length ? (ev.length - picked.length) / ev.length : 0,
+      orders: picked.length, missed: ev.length - picked.length + simMiss, full: ev.filter(e => e.fillAtPickup >= ASSUMPTIONS.alertFill).length, pickups: ev.length + simMiss,
+      missRate: ev.length ? (ev.length - picked.length + simMiss) / (ev.length + simMiss) : 0,
       weight: total, byStream, separation: sep, resource: total ? res / total : 0, co2, weekly
     };
   },
@@ -458,6 +511,8 @@ const Model = {
           id: 'composition|' + c.id, type: 'composition', severity: 'low', cid: c.id, loc: c.loc, ops: null,
           title: 'Composition scan: ~' + c.audit + '% recyclable material in residual · ' + L.name,
           reason: 'The last (simulated) scan of this residual container found about ' + c.audit + '% paper, cardboard and packaging. Residual is the most expensive stream — a paper bin or a short staff briefing could shift this weight.',
+          why: 'The last (simulated) scan of this residual container found about ' + c.audit + '% paper, cardboard and packaging. Residual is the most expensive stream.',
+          todo: 'Check in with the site manager about what goes in the residual bin, then add a paper bin or give staff a short briefing.',
           impact: { pickups: 0, cost: 0, co2: 0, note: 'Creates an audit / follow-up task for the site.' }
         });
       }
@@ -473,7 +528,7 @@ const Model = {
       this.overrides = this.applyOps(this.overrides, rec.ops);
       rec.ops.forEach(o => { if (o.op === 'cancel') delete this.amounts[o.cid + '|' + o.date]; });
     }
-    else this.tasks[rec.id] = { title: rec.title, loc: rec.loc, done: false, reason: rec.reason, note: (rec.impact && rec.impact.note) || '' };
+    else this.tasks[rec.id] = { title: rec.title, loc: rec.loc, done: false, reason: rec.reason, todo: rec.todo || '', why: rec.why || '' };
     this.log.unshift({ t: new Date().toISOString(), text: (rec.ops ? 'Applied: ' : 'Task created: ') + rec.title });
   },
   toggleTask(id) { const t = this.tasks[id]; if (t && typeof t === 'object') t.done = !t.done; },

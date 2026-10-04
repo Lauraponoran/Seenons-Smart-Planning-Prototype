@@ -239,7 +239,8 @@ const Model = {
       let rec = null;
 
       /* 1) overflow risk */
-      const over = base.find(p => p.fill >= A.alertFill);
+      // a pickup scheduled today already empties today's (full) reading, so it is not an overflow risk any more
+      const over = base.find(p => p.fill >= A.alertFill && !(p.d === 0 && p.pickup));
       if (over) {
         let lastReset = 0;
         for (const p of base) if (p.pickup && p.d < over.d) lastReset = p.d;

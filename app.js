@@ -4,7 +4,7 @@ const ui = {
   tab: 'planner', loc: '', cid: null, modal: null, month: null,
   fLocs: [], fStreams: [], filterOpen: false,           // planner calendar filters (empty = show all)
   add: { open: false, loc: null, stream: null, amount: 1, date: null, msg: '' },
-  scrollAdd: false, notifAll: false
+  scrollAdd: false, notifAll: false, notifHidden: false, simOpen: false
 };
 const $ = s => document.querySelector(s);
 const eur = n => (n < 0 ? '−' : n > 0 ? '+' : '') + '€' + Math.abs(Math.round(n));
@@ -29,25 +29,11 @@ function impactChips(r) {
 }
 const typeLabel = { overflow: 'Overflow risk', risk: 'Missed-pickup risk', underfill: 'Cost saving', composition: 'Composition' };
 
-/* page heading, with the demo-controls widget directly underneath.
-   Why the widget sits under the heading of every tab (not only Planner): the scenario is global
-   state — it changes the forecast, the agent's suggestions and the Overview KPIs — so the control
-   has to be reachable wherever its effect shows. To limit it to Planner, make the eventWidget() call
-   below conditional on ui.tab === 'planner'. */
+/* page heading (the holiday simulator floats bottom-right, see simulator()) */
 function pageHead(title, sub) {
-  return '<div class="page-head"><div><h2>' + title + '</h2>' + (sub ? '<p class="sub">' + sub + '</p>' : '') + '</div></div>' + eventWidget();
+  return '<div class="page-head"><div><h2>' + title + '</h2>' + (sub ? '<p class="sub">' + sub + '</p>' : '') + '</div></div>';
 }
 
-/* widget: a slim dashed strip (so it reads as prototype tooling, not product UI) with the events as a
-   segmented control — one click per scenario instead of a dropdown — plus Reset demo.
-   Picking an event reveals the info line (effects + overflow count) inside the strip. */
-function eventWidget() {
-  const tabs = Object.entries(SCENARIOS).map(([k, v]) =>
-    '<button class="wi-tab' + (k === Model.scenario ? ' on' : '') + '" data-act="scenario" data-val="' + k + '" aria-pressed="' + (k === Model.scenario) + '">' + (v.short || v.label) + '</button>').join('');
-  return '<section class="whatif"><div class="wi-top"><div class="wi-title">Simulate an event <small>Demo</small></div>' +
-    '<div class="wi-pills" role="group" aria-label="Simulate an event">' + tabs + '</div>' +
-    '<button class="wi-reset" data-act="reset">Reset demo</button></div>' + eventLine() + '</section>';
-}
 
 /* one-line summary of the simulated event: effects on waste volume and the agent's reaction */
 function pctDelta(m) {
@@ -68,15 +54,29 @@ function eventLine() {
   const sc = SCENARIOS[Model.scenario], why = (typeof SCENARIO_WHY !== 'undefined' && SCENARIO_WHY[Model.scenario]) || {};
   const fx = scenarioEffects(), n = fx.now.overflow;
   const esc = t => String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-  // one tag per location type; hover / focus / tap to see why the percentage is what it is
-  const tiles = Object.entries(sc.mult).map(([t, m]) => {
+  // one row per location type; hover / focus / tap the number to see why it is what it is
+  const rows = Object.entries(sc.mult).map(([t, m]) => {
     const tip = (why[t] || '') + ' The forecast fill rate for every ' + t.toLowerCase() + ' container is multiplied by ' + m + '.';
-    return '<div class="fx tip ' + (m > 1 ? 'up' : m < 1 ? 'down' : '') + '" tabindex="0" data-tip="' + esc(tip) + '"><span class="fx-l">' + t + '</span><span class="fx-v">' + pctDelta(m) + '</span></div>';
+    return '<div class="sim-stat tip" tabindex="0" data-tip="' + esc(tip) + '"><span>' + t + '</span><b class="' + (m > 1 ? 'up' : m < 1 ? 'down' : '') + '">' + pctDelta(m) + '</b></div>';
   }).join('');
   const riskTip = 'Containers the agent expects to reach ' + ASSUMPTIONS.alertFill + '% full within 14 days, before their next pickup. ' +
     (n > fx.base.overflow ? 'The higher waste volumes fill them faster, so ' + (n - fx.base.overflow) + ' more than normal now need action.' : 'This event does not add any new overflow risks.');
-  const risk = '<div class="fx risk tip" tabindex="0" data-tip="' + esc(riskTip) + '"><span class="fx-l">Overflow risks · ' + fx.base.overflow + ' normally</span><span class="fx-v">' + n + '</span></div>';
-  return '<div class="wi-fx">' + (sc.note ? '<p class="wi-note">' + sc.note + '</p>' : '') + tiles + risk + '</div>';
+  const risk = '<div class="sim-stat tip" tabindex="0" data-tip="' + esc(riskTip) + '"><span>Overflow risks (' + fx.base.overflow + ' normally)</span><b class="risk">' + n + '</b></div>';
+  return '<div class="sim-fx">' + (sc.note ? '<p class="sim-note">' + sc.note + '</p>' : '') + rows + risk + '</div>';
+}
+
+/* holiday simulator: floating launcher bottom-right (like a chat widget) that opens a small panel */
+function simulator() {
+  const sc = SCENARIOS[Model.scenario], active = Model.scenario !== 'normal';
+  const opts = Object.entries(SCENARIOS).map(([k, v]) =>
+    '<button class="sim-opt' + (k === Model.scenario ? ' on' : '') + '" data-act="scenario" data-val="' + k + '" aria-pressed="' + (k === Model.scenario) + '"><span class="sim-dot"></span>' + v.label + '</button>').join('');
+  const panel = !ui.simOpen ? '' :
+    '<div class="sim-panel" role="dialog" aria-label="Holiday simulator"><div class="sim-head"><b>Holiday simulator</b><small>Demo</small>' +
+    '<button class="sim-x" data-act="simtoggle" aria-label="Close">×</button></div>' +
+    '<p class="small sim-intro">Pick an event to see how the forecast and the agent\'s suggestions react.</p><div class="sim-opts">' + opts + '</div>' +
+    eventLine() + '<button class="sim-reset" data-act="reset">Reset demo</button></div>';
+  return '<div class="sim">' + panel + '<button class="sim-fab" data-act="simtoggle" aria-expanded="' + ui.simOpen + '">Holiday simulator' +
+    (active ? '<span class="sim-badge">' + sc.short + '</span>' : '') + '</button></div>';
 }
 
 /* heading + widget (+ location select on pages that filter by one location) */
@@ -277,7 +277,10 @@ function notifications() {
     '<button class="btn sec sm" data-act="selghost" data-id="' + r.id + '">Why?</button></div></div>').join('');
   const foot = (rest > 0 ? '<button class="btn sec sm" data-act="notifmore">' + (ui.notifAll ? 'Show less' : '+' + rest + ' more') + '</button>' : '') +
     (sched > 1 ? '<button class="btn sm" data-act="applyall">Apply all schedule changes</button>' : '');
-  return '<div class="notifs" aria-live="polite">' + toasts + (foot ? '<div class="notif-foot">' + foot + '</div>' : '') + '</div>';
+  // pull-out tab: the stack slides off to the right edge, the tab (with the count) stays visible
+  return '<div class="notifs' + (ui.notifHidden ? ' hidden' : '') + '" aria-live="polite">' +
+    '<button class="notif-tab" data-act="notiftoggle" aria-expanded="' + !ui.notifHidden + '" title="' + (ui.notifHidden ? 'Show' : 'Hide') + ' AI suggestions">AI suggestions<span class="notif-n">' + recs.length + '</span></button>' +
+    '<div class="notif-stack">' + toasts + (foot ? '<div class="notif-foot">' + foot + '</div>' : '') + '</div></div>';
 }
 
 function plannerModal() {
@@ -354,7 +357,7 @@ function viewData() {
 /* ---------------- render + events ---------------- */
 function render() {
   $('#nav').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === ui.tab));
-  $('#view').innerHTML = { report: viewOverview, planner: viewPlanner, forecast: viewForecast, data: viewData }[ui.tab]();
+  $('#view').innerHTML = { report: viewOverview, planner: viewPlanner, forecast: viewForecast, data: viewData }[ui.tab]() + simulator();
   if (ui.scrollAdd) {
     ui.scrollAdd = false;
     const el = document.querySelector('.addform');
@@ -398,6 +401,8 @@ function init() {
     else if (act === 'selday') ui.modal = { kind: 'day', date: d.date };
     else if (act === 'toggleadd') { ui.add.open = !ui.add.open; ui.add.msg = ''; ui.filterOpen = false; ui.scrollAdd = ui.add.open; }
     else if (act === 'setadd') { ui.add.open = true; ui.add.date = d.date; ui.add.msg = ''; ui.modal = null; ui.scrollAdd = true; }
+    else if (act === 'notiftoggle') ui.notifHidden = !ui.notifHidden;
+    else if (act === 'simtoggle') ui.simOpen = !ui.simOpen;
     else if (act === 'notifmore') ui.notifAll = !ui.notifAll;
     else if (act === 'scenario') Model.scenario = d.val;
     else if (act === 'togglefilter') ui.filterOpen = !ui.filterOpen;
@@ -431,7 +436,7 @@ function init() {
 
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
-    if (ui.modal) ui.modal = null; else if (ui.filterOpen) ui.filterOpen = false; else return;
+    if (ui.modal) ui.modal = null; else if (ui.filterOpen) ui.filterOpen = false; else if (ui.simOpen) ui.simOpen = false; else return;
     render();
   });
 

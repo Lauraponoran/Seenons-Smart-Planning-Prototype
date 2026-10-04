@@ -4,9 +4,10 @@ const ui = {
   tab: 'planner', loc: '', cid: null, modal: null, month: null,
   fLocs: [], fStreams: [], filterOpen: false,           // planner calendar filters (empty = show all)
   add: { open: false, loc: null, stream: null, amount: 1, date: null, msg: '' },
-  scrollAdd: false, noteOpen: false, notifAll: false, notifHidden: false, simOpen: false, from: '', to: ''
+  scrollAdd: false, noteOpen: false, notifAll: false, notifHidden: false, simOpen: false, from: iso(addDays(Model.today, -(HISTORY_DAYS - 1))), to: iso(Model.today)
 };
 const $ = s => document.querySelector(s);
+const defFrom = () => iso(addDays(Model.today, -(HISTORY_DAYS - 1))), defTo = () => iso(Model.today);
 const eur = n => (n < 0 ? '−' : n > 0 ? '+' : '') + '€' + Math.abs(Math.round(n));
 const kg = n => Math.round(n).toLocaleString('en-GB') + ' kg';
 const pct = n => Math.round(n * 100) + '%';
@@ -89,11 +90,10 @@ function toolbar(withDate) {
   const sel = '<label>Location<select id="locSel"><option value="">All locations</option>' +
     LOCATIONS.map(l => '<option value="' + l.id + '"' + (l.id === ui.loc ? ' selected' : '') + '>' + l.name + '</option>').join('') + '</select></label>';
   const lim = ' min="' + iso(addDays(Model.today, -HISTORY_DAYS)) + '" max="' + iso(Model.today) + '"';
-  const R = Model.buckets(ui.from, ui.to), range = dShort(R.s) + ' – ' + dShort(R.e);
+  const isDef = ui.from === defFrom() && ui.to === defTo();
   const dates = !withDate ? '' :
     '<label>From<input type="date" id="fromSel"' + lim + ' value="' + ui.from + '"></label><label>To<input type="date" id="toSel"' + lim + ' value="' + ui.to + '"></label>' +
-    ((ui.from || ui.to) ? '<button class="linkbtn" style="align-self:center" data-act="cleardates">Clear dates</button><span class="small" style="align-self:center">Showing ' + range + '</span>'
-      : '<span class="small" style="align-self:center">Showing the last 12 weeks (' + range + ')</span>');
+    (isDef ? '' : '<button class="linkbtn" style="align-self:center" data-act="cleardates">Reset to last 12 weeks</button>');
   return '<div class="toolbar">' + sel + dates + '</div>';
 }
 function pageTop(title, sub, withLoc, withDate) {
@@ -212,7 +212,7 @@ function taskCard(r) {
     '<h4>' + r.title + '</h4><p>' + r.reason + '</p><div>' + impactChips(r) + '</div></div>' +
     '<div class="acts"><button class="btn" data-act="apply" data-id="' + r.id + '">Create task</button><button class="btn sec" data-act="dismiss" data-id="' + r.id + '">Dismiss</button></div></div>';
 }
-/* friendly to-do notebook, top-right corner (Report and Recommendations pages) */
+/* task list: button top-right (Report page) that opens a small panel, styled like the other panels */
 function notebook() {
   const items = Object.entries(Model.tasks).filter(([, t]) => t && typeof t === 'object');
   const open = items.filter(([, t]) => !t.done).length;
@@ -222,11 +222,10 @@ function notebook() {
       '<span class="info" tabindex="0" role="note" aria-label="Why this task" data-tt="' + escA(tip) + '">i</span></div>';
   };
   const panel = !ui.noteOpen ? '' :
-    '<div class="nb-panel" role="dialog" aria-label="My notebook"><button class="nb-x" data-act="notetoggle" aria-label="Close notebook">×</button>' +
-    '<h4>My notebook ✏️</h4><p class="nb-sub">' + (items.length ? (open ? open + ' thing' + (open > 1 ? 's' : '') + ' to do' : 'All done, nice work! 🎉') : 'Your to-dos live here') + '</p>' +
-    '<div class="nb-list">' + (items.length ? items.map(row).join('') : '<p class="nb-empty">Nothing here yet. Hit <b>Create task</b> on a recommendation and it lands in this notebook.</p>') + '</div></div>';
-  return '<div class="nb">' + panel + '<button class="nb-btn" data-act="notetoggle" aria-expanded="' + !!ui.noteOpen + '" aria-label="Open notebook" title="My notebook">📓' +
-    (open ? '<span class="nb-n">' + open + '</span>' : '') + '</button></div>';
+    '<div class="nb-panel" role="dialog" aria-label="Tasks"><div class="nb-head"><b>Tasks</b><small>' + (items.length ? (open ? open + ' open' : 'All done') : 'None yet') + '</small>' +
+    '<button class="nb-x" data-act="notetoggle" aria-label="Close">×</button></div>' +
+    '<div class="nb-list">' + (items.length ? items.map(row).join('') : '<p class="nb-empty">No tasks yet. Choose <b>Create task</b> on a recommended action and it will appear here.</p>') + '</div></div>';
+  return '<div class="nb">' + panel + '<button class="nb-btn" data-act="notetoggle" aria-expanded="' + !!ui.noteOpen + '">Tasks' + (open ? '<span class="nb-n">' + open + '</span>' : '') + '</button></div>';
 }
 
 /* ---------------- views ---------------- */
@@ -243,8 +242,10 @@ function viewOverview() {
       return '<td class="heat" data-tt="' + escA(tt) + '" style="background:rgba(229,86,109,' + (0.08 + a * 0.6).toFixed(2) + ')">' + pct(m.rate) + '</td>';
     }).join('') + '</tr>';
   }).join('') + '</table>';
+  const rank = { high: 0, medium: 1, low: 2 };
+  const acts = [...viewRecs().filter(r => !r.ops), ...Model.insights(ui.loc, f, t)].sort((a, b) => rank[a.severity] - rank[b.severity]);
   const kpi = (v, l, warn, tt) => '<div class="card kpi ' + (warn ? 'warn' : '') + '"' + (tt ? ' data-tt="' + escA(tt) + '"' : '') + '><div class="v">' + v + '</div><div class="l">' + l + '</div></div>';
-  return pageHead('Report', 'What Seenons clients see today, plus ideas from competitors and the market.') +
+  return pageHead('Report', 'What Seenons clients see today, plus recommended next steps.') +
     '<div class="report-panel">' + toolbar(true) +
     '<h3 class="sec-h">Summary Statistics</h3>' +
     '<div class="grid kpis">' + kpi(k.orders, 'Orders', false, 'Total orders picked up in this period.') + kpi(kg(k.weight), 'Weight', false, 'Total weight collected in this period.') +
@@ -257,14 +258,7 @@ function viewOverview() {
     '<div class="grid cols2"><div class="card"><h3>Weight (kg) by stream and location</h3><p class="small cap">Hover a bar for amounts.</p>' + chartStreamLoc(bd, locs) + '</div>' +
     '<div class="card"><h3>Weight (kg) over time</h3>' + caption(bd.buckets) + chartWeekStack(bd) + '</div></div>' +
     '<div class="grid cols2"><div class="card"><h3>Source separation rate vs resource saved rate</h3>' + caption(bd.buckets) + chartRates(bd) + '</div>' +
-    '<div class="card"><h3>Missed-pickup rate by weekday <span class="small">— service-event data the agent learns from</span></h3><p class="small cap">Hover a cell for the number of missed pickups.</p>' + heat + '</div></div></div>';
-}
-
-function viewActions() {
-  const rank = { high: 0, medium: 1, low: 2 };
-  const acts = [...viewRecs().filter(r => !r.ops), ...Model.insights(ui.loc, ui.from, ui.to)].sort((a, b) => rank[a.severity] - rank[b.severity]);
-  return pageHead('Recommendations', 'Suggested next steps from your waste data. Create a task to save one to your notebook.') +
-    '<div class="report-panel">' + toolbar(true) +
+    '<div class="card"><h3>Missed-pickup rate by weekday <span class="small">— service-event data the agent learns from</span></h3><p class="small cap">Hover a cell for the number of missed pickups.</p>' + heat + '</div></div>' +
     '<h3 class="sec-h">Recommended actions <span class="small">(' + acts.length + ')</span></h3>' +
     (acts.map(taskCard).join('') || '<p class="sub">No open recommendations for this selection.</p>') + '</div>';
 }
@@ -447,7 +441,7 @@ function plannerModal() {
 function render() {
   tipBox.style.display = 'none'; tipBox._el = null;
   $('#nav').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === ui.tab));
-  $('#view').innerHTML = { report: viewOverview, recs: viewActions, planner: viewPlanner }[ui.tab]() + simulator() + (ui.tab === 'planner' ? '' : notebook());
+  $('#view').innerHTML = { report: viewOverview, planner: viewPlanner }[ui.tab]() + simulator() + (ui.tab === 'planner' ? '' : notebook());
   if (ui.scrollAdd) {
     ui.scrollAdd = false;
     const el = document.querySelector('.addform');
@@ -477,7 +471,7 @@ function init() {
     if (act === 'closemodal') { if (e.target !== b && !d.x) return; ui.modal = null; }
     else if (act === 'reset') {
       Model.reset(); Model.scenario = 'normal';
-      ui.modal = null; ui.loc = ''; ui.fLocs = []; ui.fStreams = []; ui.filterOpen = false; ui.month = null; ui.simOpen = false; ui.from = ''; ui.to = ''; resetAdd();
+      ui.modal = null; ui.loc = ''; ui.fLocs = []; ui.fStreams = []; ui.filterOpen = false; ui.month = null; ui.simOpen = false; ui.noteOpen = false; ui.from = defFrom(); ui.to = defTo(); resetAdd();
     } else if (act === 'apply' || act === 'dismiss') {
       const r = findRec(d.id);
       if (r) { act === 'apply' ? Model.apply(r) : Model.dismiss(r); if (act === 'apply' && !r.ops) ui.noteOpen = true; }
@@ -490,7 +484,7 @@ function init() {
     else if (act === 'toggleadd') { ui.add.open = !ui.add.open; ui.add.msg = ''; ui.filterOpen = false; ui.scrollAdd = ui.add.open; }
     else if (act === 'setadd') { ui.add.open = true; ui.add.date = d.date; ui.add.msg = ''; ui.modal = null; ui.scrollAdd = true; }
     else if (act === 'notiftoggle') ui.notifHidden = !ui.notifHidden;
-    else if (act === 'cleardates') { ui.from = ''; ui.to = ''; }
+    else if (act === 'cleardates') { ui.from = defFrom(); ui.to = defTo(); }
     else if (act === 'simtoggle') ui.simOpen = !ui.simOpen;
     else if (act === 'notetoggle') ui.noteOpen = !ui.noteOpen;
     else if (act === 'notifmore') ui.notifAll = !ui.notifAll;

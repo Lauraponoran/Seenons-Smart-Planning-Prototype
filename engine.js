@@ -242,7 +242,7 @@ const Model = {
     const A = ASSUMPTIONS, out = [];
     const DAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const num = n => Math.round(n).toLocaleString('en-GB');
-    const span = (from || to) ? 'in the selected period' : 'over the last 12 weeks';
+    const span = ((!from && !to) || (from === iso(addDays(this.today, -(HISTORY_DAYS - 1))) && to === iso(this.today))) ? 'over the last 12 weeks' : 'in the selected period';
     const FIX = {
       'Wrong container placed': (d, s) => 'Make sure the ' + s.toLowerCase() + ' container is placed at the agreed pickup spot before the truck arrives on ' + d + 's, and label it clearly so the driver can find it.',
       'Container blocked':      (d)    => 'Keep the access route and pickup spot clear on ' + d + 's: mark the spot and brief site staff to leave it free.',

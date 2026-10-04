@@ -4,7 +4,7 @@
   --navy: #1F4E5A; --navy-d: #163B45;
   --teal: #4BA58A; --teal-l: #E2F1EA; --green: #2E8B70;
   --pink: #EA5B7D; --pink-d: #D2436A; --pink-l: #FCE6EC;
-  --blue-l: #E3EDF6; --blue: #2C5F8A;
+  --blue-l: #E3EDF6; --blue: #2C5F8A; --blue-d: #234E71;
 }
 * { box-sizing: border-box; }
 body { margin: 0; display: flex; min-height: 100vh; background: var(--bg); color: var(--ink);
@@ -50,6 +50,9 @@ select:focus, input:focus, button:focus-visible { outline: 2px solid var(--teal)
 .btn.sec:hover { background: var(--teal-l); }
 .btn.danger { background: #fff; color: var(--pink-d); border-color: var(--pink); }
 .btn.danger:hover { background: var(--pink-l); }
+/* blue = navigation (Today); pink = primary action; outlined navy = secondary */
+.btn.blue { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 500; }
+.btn.blue:hover { background: var(--blue-d); border-color: var(--blue-d); }
 .btn.sm { padding: 5px 14px; font-size: 13px; }
 .badge { display: inline-block; font-size: 11px; padding: 2px 10px; border-radius: 99px; background: var(--teal-l); color: var(--navy); font-weight: 600; }
 .badge.high { background: var(--pink-l); color: var(--pink-d); }
@@ -81,8 +84,11 @@ svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
 .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; }
 .fc-head { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 8px 0 14px; }
 
-/* ---------- event picker (header) + one-line summary ---------- */
-.head-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+/* ---------- demo-controls widget (under the page heading) + one-line event summary ---------- */
+.sim-card { padding: 14px 18px; margin-bottom: 14px; }
+.sim-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--teal); margin-bottom: 8px; }
+.sim-row { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; }
+.sim-card .ev-line { margin: 12px 0 0; }
 .ev-inline { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
 .ev-inline select { padding: 7px 12px; border-radius: 999px; }
 .ev-line { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; font-size: 13px; color: var(--muted); background: var(--pink-l); border-radius: 12px; padding: 8px 14px; margin-bottom: 14px; }
@@ -95,7 +101,8 @@ svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
 .month-name { font-size: 18px; min-width: 150px; color: var(--navy); }
 .nav { width: 32px; height: 32px; border-radius: 50%; border: 1.5px solid var(--line); background: #fff; font-size: 20px; line-height: 1; cursor: pointer; color: var(--navy); }
 .nav:hover { background: var(--teal-l); }
-.filter-wrap { position: relative; margin-left: auto; }
+.cal-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.filter-wrap { position: relative; }
 .count { background: var(--pink); color: #fff; border-radius: 99px; padding: 0 7px; font-size: 11px; margin-left: 6px; }
 .popover { position: absolute; right: 0; top: calc(100% + 8px); z-index: 15; background: #fff; border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 10px 30px rgba(31,78,90,.2); padding: 16px 18px; display: flex; flex-wrap: wrap; gap: 14px 34px; min-width: 480px; }
 .pop-col { display: flex; flex-direction: column; gap: 2px; }
@@ -141,6 +148,11 @@ svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
 .plus { border: 0; background: transparent; color: var(--navy); font-size: 16px; line-height: 1; width: 22px; height: 22px; border-radius: 50%; cursor: pointer; opacity: 0; }
 .day:hover .plus, .plus:focus { opacity: 1; background: var(--teal-l); }
 .more { border: 0; background: transparent; color: var(--navy); font: inherit; font-size: 11px; font-weight: 600; text-align: left; padding: 0 2px; cursor: pointer; text-decoration: underline; }
+
+/* holidays: public holiday = pink-tinted day + pink label; notable date = blue label only */
+.day.hol-public { background: #FDF1F4; border-color: #F3C7D3; }
+.hol { display: block; flex: none; font-size: 10px; font-weight: 600; line-height: 1.3; padding: 0 2px; color: var(--pink-d); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hol.event { color: var(--blue); }
 
 /* pickup chips: the whole bar is the waste-type colour */
 .pk { display: flex; align-items: center; gap: 5px; width: 100%; text-align: left; border: 0; border-radius: 8px; padding: 3px 5px; margin: 0; font: inherit; font-size: 10.5px; font-weight: 600; line-height: 1.35; background: color-mix(in srgb, var(--c) 32%, #fff); color: var(--navy); cursor: pointer; overflow: hidden; }

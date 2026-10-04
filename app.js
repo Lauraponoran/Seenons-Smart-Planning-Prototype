@@ -37,12 +37,21 @@ function recCard(r) {
     '<button class="btn sec" data-act="dismiss" data-id="' + r.id + '">Dismiss</button></div></div>';
 }
 
-/* page heading (left); event picker + Reset demo (right) */
+/* page heading, with the demo-controls widget directly underneath.
+   Why the widget sits under the heading of every tab (not only Planner): the scenario is global
+   state — it changes the forecast, the agent's suggestions and the Overview KPIs — so the control
+   has to be reachable wherever its effect shows. To limit it to Planner, make the eventWidget() call
+   below conditional on ui.tab === 'planner'. */
 function pageHead(title, sub) {
+  return '<div class="page-head"><div><h2>' + title + '</h2>' + (sub ? '<p class="sub">' + sub + '</p>' : '') + '</div></div>' + eventWidget();
+}
+
+/* widget: event picker + Reset demo; picking an event reveals the info line (effects + overflow count) inside it */
+function eventWidget() {
   const opts = Object.entries(SCENARIOS).map(([k, v]) => '<option value="' + k + '"' + (k === Model.scenario ? ' selected' : '') + '>' + v.label + '</option>').join('');
-  return '<div class="page-head"><div><h2>' + title + '</h2>' + (sub ? '<p class="sub">' + sub + '</p>' : '') + '</div>' +
-    '<div class="head-actions"><label class="ev-inline">Simulate an event<select id="scSel">' + opts + '</select></label>' +
-    '<button class="btn sec" data-act="reset">Reset demo</button></div></div>';
+  return '<div class="card sim-card"><div class="sim-title">Demo controls</div>' +
+    '<div class="sim-row"><label class="ev-inline">Simulate an event<select id="scSel">' + opts + '</select></label>' +
+    '<button class="btn sec" data-act="reset">Reset demo</button></div>' + eventLine() + '</div>';
 }
 
 /* one-line summary of the simulated event: effects on waste volume and the agent's reaction */
@@ -67,13 +76,13 @@ function eventLine() {
     '<span>' + n + ' overflow risk' + (n === 1 ? '' : 's') + ' (' + fx.base.overflow + ' normally)</span></div>';
 }
 
-/* heading + event line (+ location select on pages that filter by one location) */
+/* heading + widget (+ location select on pages that filter by one location) */
 function pageTop(title, sub, withLoc) {
   const loc = withLoc
     ? '<div class="toolbar"><label>Location<select id="locSel"><option value="">All locations</option>' +
       LOCATIONS.map(l => '<option value="' + l.id + '"' + (l.id === ui.loc ? ' selected' : '') + '>' + l.name + '</option>').join('') + '</select></label></div>'
     : '';
-  return pageHead(title, sub) + eventLine() + loc;
+  return pageHead(title, sub) + loc;
 }
 
 function chartSvg(c, big) {
@@ -183,10 +192,8 @@ function addState() {
 }
 function addEstimate() {
   const { a, cont } = addState();
-  const free = Model.isFree(a.date);
-  const cost = a.amount * ASSUMPTIONS.pickupCost + (free ? 0 : ASSUMPTIONS.sameDayFee);
-  return a.amount + ' × ' + cont.cap + ' L ' + STREAMS[cont.stream].label.toLowerCase() + ' at ' + locOf(cont).name + ', ' + fmtDate(a.date) + ' · est. €' + cost +
-    (free ? ' · free to change until 1 day before' : ' · includes €' + ASSUMPTIONS.sameDayFee + ' same-day fee');
+  const cost = a.amount * ASSUMPTIONS.pickupCost;   // plain amount × price per pickup; no late-change fee is modelled
+  return a.amount + ' × ' + cont.cap + ' L ' + STREAMS[cont.stream].label.toLowerCase() + ' at ' + locOf(cont).name + ', ' + fmtDate(a.date) + ' · est. €' + cost;
 }
 function addForm() {
   if (!ui.add.open) return '';
@@ -229,9 +236,12 @@ function viewPlanner() {
     const date = addDays(start, i), key = iso(date), past = key < todayKey, other = date.getMonth() !== ui.month.m;
     const di = dayItems(date, cs, ghosts);
     const all = [...di.ghosts.map(g => ghostChip(g)), ...di.pickups.map(p => pkChip(p))];
-    const more = all.length > 3 ? '<button class="more" data-act="selday" data-date="' + key + '">+' + (all.length - 3) + ' more</button>' : '';
-    cells += '<div class="day ' + (key === todayKey ? 'today ' : '') + (past ? 'past ' : '') + (other ? 'other' : '') + '"><div class="dh"><b>' + date.getDate() + '</b>' +
-      (past ? '' : '<button class="plus" title="Add pickup on this day" data-act="setadd" data-date="' + key + '">+</button>') + '</div>' + all.slice(0, 3).join('') + more + '</div>';
+    const hol = Model.holiday(date);
+    const holLabel = hol ? '<span class="hol ' + hol.kind + '" title="' + hol.name + (hol.kind === 'public' ? ' (public holiday)' : '') + '">' + hol.name + '</span>' : '';
+    const maxChips = hol ? 2 : 3;            // the holiday label takes one line of the square cell
+    const more = all.length > maxChips ? '<button class="more" data-act="selday" data-date="' + key + '">+' + (all.length - maxChips) + ' more</button>' : '';
+    cells += '<div class="day ' + (key === todayKey ? 'today ' : '') + (past ? 'past ' : '') + (other ? 'other ' : '') + (hol && hol.kind === 'public' ? 'hol-public' : '') + '"><div class="dh"><b>' + date.getDate() + '</b>' +
+      (past ? '' : '<button class="plus" title="Add pickup on this day" data-act="setadd" data-date="' + key + '">+</button>') + '</div>' + holLabel + all.slice(0, maxChips).join('') + more + '</div>';
   }
   const monthName = first.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   const nFilters = ui.fLocs.length + ui.fStreams.length;
@@ -239,15 +249,17 @@ function viewPlanner() {
   const activeRow = active.length
     ? '<div class="active-filters">Showing only:' + active.map(a => '<button class="fchip" data-act="rmfilter" data-kind="' + a[0] + '" data-val="' + a[1] + '" title="Remove filter">' + a[2] + ' ×</button>').join('') + '</div>'
     : '';
-  return pageHead('Planner', 'Your upcoming pickups') + eventLine() +
+  return pageHead('Planner', 'Your upcoming pickups') +
     '<div class="card cal-card">' +
     '<div class="cal-toolbar"><div class="month-nav"><button class="nav" data-act="monthprev" aria-label="Previous month">‹</button><button class="nav" data-act="monthnext" aria-label="Next month">›</button>' +
-    '<b class="month-name">' + monthName + '</b><button class="btn sec sm" data-act="monthtoday">Today</button></div>' +
-    '<div class="filter-wrap"><button class="btn sec" data-act="togglefilter">Filter' + (nFilters ? '<span class="count">' + nFilters + '</span>' : '') + ' ▾</button>' + filterPanel() + '</div></div>' +
+    '<b class="month-name">' + monthName + '</b></div>' +
+    // Today sits right beside Filter and is blue so the two buttons read as different things (navigate vs. narrow down)
+    '<div class="cal-actions"><button class="btn blue" data-act="monthtoday">Today</button>' +
+    '<div class="filter-wrap"><button class="btn sec" data-act="togglefilter">Filter' + (nFilters ? '<span class="count">' + nFilters + '</span>' : '') + ' ▾</button>' + filterPanel() + '</div></div></div>' +
     '<div class="add-row"><button class="btn" data-act="toggleadd">+ Add pickup</button></div>' +
     addForm() + activeRow +
     '<div class="cal">' + head + cells + '</div>' +
-    '<p class="foot-key">Colour = waste type · tag = location · dashed <span class="ai-demo">AI</span> = suggestion from the agent</p></div>' + plannerModal();
+    '<p class="foot-key">Colour = waste type · tag = location · dashed <span class="ai-demo">AI</span> = suggestion from the agent · pink day = public holiday · blue label = notable date</p></div>' + plannerModal();
 }
 
 function plannerModal() {
@@ -264,12 +276,11 @@ function plannerModal() {
       '<button class="btn sec" data-act="dismiss" data-id="' + r.id + '">Dismiss</button></div>';
   } else if (m.kind === 'pk') {
     const c = Model.cont(m.cid), st = Model.status(c, parseIso(m.date)), sim = Model.simulate(c).find(x => x.date === m.date);
-    const free = Model.isFree(m.date), mr = Model.missRate(c.loc, parseIso(m.date).getDay());
+    const mr = Model.missRate(c.loc, parseIso(m.date).getDay());
     const amount = Model.amounts[m.cid + '|' + m.date] || 1;
-    const feeNote = free ? '<span class="chip good">Free to change (≥ 1 day ahead)</span>' : '<span class="chip bad">Less than 1 day ahead — €' + ASSUMPTIONS.sameDayFee + ' fee</span>';
     body = close + '<h3>' + Model.contLabel(c) + '</h3><p>' + fmtDate(m.date) + ' · status <b>' + st + '</b>' + (amount > 1 ? ' · <b>' + amount + ' containers</b>' : '') +
       (sim ? ' · forecast fill ~<b>' + Math.round(Math.min(sim.fill, 100)) + '%</b>' : '') +
-      '<br>Missed on this weekday historically: <b>' + pct(mr.rate) + '</b> (' + mr.n + ' pickups)</p><p>' + feeNote + '</p>' +
+      '<br>Missed on this weekday historically: <b>' + pct(mr.rate) + '</b> (' + mr.n + ' pickups)</p>' +
       (st === 'cancelled'
         ? '<button class="btn" data-act="restore" data-cid="' + m.cid + '" data-date="' + m.date + '">Restore pickup</button>'
         : '<div class="row"><button class="btn danger" data-act="cancelpk" data-cid="' + m.cid + '" data-date="' + m.date + '">Cancel pickup</button>' +
@@ -278,7 +289,9 @@ function plannerModal() {
   } else if (m.kind === 'day') {
     const cs = plannerContainers();
     const di = dayItems(parseIso(m.date), cs, plannerGhosts(cs));
-    body = close + '<h3>' + fmtDate(m.date) + '</h3><div class="daylist">' +
+    const hol = Model.holiday(parseIso(m.date));
+    body = close + '<h3>' + fmtDate(m.date) + '</h3>' +
+      (hol ? '<p class="small"><b>' + hol.name + '</b>' + (hol.kind === 'public' ? ' · public holiday' : '') + '</p>' : '') + '<div class="daylist">' +
       (di.ghosts.map(g => ghostChip(g, true)).join('') + di.pickups.map(p => pkChip(p, true)).join('') || '<p class="small">No pickups planned.</p>') +
       '</div><button class="btn sec" data-act="setadd" data-date="' + m.date + '">+ Add a pickup on this day</button>';
   }
@@ -325,7 +338,6 @@ function viewData() {
     '<div class="card" style="margin-bottom:14px"><h3>Assumptions made in this prototype</h3><ul>' +
     '<li>Disposal partners deliver pickup status and weights; the platform already has orders, weight, separation rate and CO₂ per stream.</li>' +
     '<li>New: fill-level sensors report daily (here simulated; use the sliders below to change a reading and watch the agent react).</li>' +
-    '<li>Rescheduling is free at least ' + A.freeRescheduleDays + ' day ahead; closer than that costs €' + A.sameDayFee + ' (demo value).</li>' +
     '<li>Costs: €' + A.pickupCost + ' per pickup, ' + A.co2PerPickup + ' kg CO₂ per truck stop, overflow threshold ' + A.alertFill + '% (all demo values).</li>' +
     '<li>Simulated events (Black Friday, Sinterklaas, Christmas, summer) are simple multipliers per company type; the real model would learn them from history.</li>' +
     '<li>All locations, containers and history in this demo are synthetic.</li></ul></div>' +

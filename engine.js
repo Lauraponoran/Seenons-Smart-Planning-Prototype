@@ -24,6 +24,50 @@ function mulberry32(a) {
   };
 }
 
+/* ------------------------------------------------------------------
+   Holiday calendar (Netherlands). Computed per year instead of hard-coded, so the
+   planner shows the right dates whichever month/year you navigate to. The movable
+   feasts all hang off Easter, which is why easterSunday() exists.
+   kind 'public' = national public holiday (collection partners are normally closed)
+   kind 'event'  = notable date worth seeing when planning (retail peaks, partial days off)
+   NOTE: display-only for now. The agent does not yet treat public holidays as closed days
+   (see README, "Holidays").
+------------------------------------------------------------------- */
+function easterSunday(y) {            // Meeus/Jones/Butcher algorithm (Gregorian calendar)
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(y, month - 1, day);
+}
+
+const HOLIDAY_CACHE = {};
+function holidaysFor(y) {              // -> { 'YYYY-MM-DD': { name, kind } }
+  if (HOLIDAY_CACHE[y]) return HOLIDAY_CACHE[y];
+  const h = {};
+  const put = (d, name, kind) => { h[iso(d)] = { name, kind }; };
+  const easter = easterSunday(y);
+  put(new Date(y, 0, 1), "New Year's Day", 'public');
+  put(addDays(easter, -2), 'Good Friday', 'event');          // not an official public holiday in NL
+  put(easter, 'Easter Sunday', 'public');
+  put(addDays(easter, 1), 'Easter Monday', 'public');
+  const king = new Date(y, 3, 27);                           // 27 April, or the 26th when the 27th is a Sunday
+  put(king.getDay() === 0 ? new Date(y, 3, 26) : king, "King's Day", 'public');
+  put(new Date(y, 4, 5), 'Liberation Day', 'event');         // only a day off in some years / sectors
+  put(addDays(easter, 39), 'Ascension Day', 'public');
+  put(addDays(easter, 49), 'Whit Sunday', 'public');
+  put(addDays(easter, 50), 'Whit Monday', 'public');
+  const thu4 = 1 + ((4 - new Date(y, 10, 1).getDay() + 7) % 7) + 21;   // 4th Thursday of November
+  put(new Date(y, 10, thu4 + 1), 'Black Friday', 'event');   // matches the "Black Friday week" scenario
+  put(new Date(y, 11, 5), 'Sinterklaas', 'event');           // matches the "Sinterklaas season" scenario
+  put(new Date(y, 11, 25), 'Christmas Day', 'public');
+  put(new Date(y, 11, 26), 'Boxing Day', 'public');
+  return (HOLIDAY_CACHE[y] = h);
+}
+
 const HISTORY_DAYS = 84;
 
 function buildHistory(today) {
@@ -73,6 +117,7 @@ const Model = {
   init() { this.hist = buildHistory(this.today); },
   loc(id) { return LOCATIONS.find(l => l.id === id); },
   cont(id) { return CONTAINERS.find(c => c.id === id); },
+  holiday(date) { return holidaysFor(date.getFullYear())[iso(date)] || null; },
   streamLabel(c) { return STREAMS[c.stream].label; },
   contLabel(c) { return STREAMS[c.stream].label + ' (' + c.cap + ' L) – ' + this.loc(c.loc).name; },
 
@@ -205,13 +250,11 @@ const Model = {
           if (p.d >= Math.max(1, lastReset + (lastReset ? 1 : 0)) && p.d <= over.d && !p.pickup &&
               p.fill <= A.targetFill + 4 && !(overIsPickup && p.d === over.d)) E = p;
         }
-        const urgent = !E;
         const eDate = E ? E.date : iso(this.today);
         const doMove = P && P.date !== eDate && parseIso(P.date) > parseIso(eDate);
         const ops = doMove
           ? [{ op: 'cancel', cid: c.id, date: P.date }, { op: 'add', cid: c.id, date: eDate }]
           : [{ op: 'add', cid: c.id, date: eDate }];
-        const fee = urgent && parseIso(eDate).getTime() === this.today.getTime() ? A.sameDayFee : 0;
         const pd = doMove ? 0 : 1;
         rec = {
           id: 'overflow|' + c.id + '|' + eDate, type: 'overflow', severity: over.d <= 2 ? 'high' : 'medium',
@@ -221,9 +264,8 @@ const Model = {
             : 'Add extra pickup on ' + fmtDate(eDate) + ' · ' + this.streamLabel(c) + ', ' + L.name,
           reason: 'Sensor reads ' + cur + '% full and fills about ' + rate.toFixed(0) + '% per day.' + scNote +
             ' Forecast reaches ' + Math.round(Math.min(over.fill, 100)) + '% on ' + fmtDate(over.date) +
-            (over.pickup ? ', right when the pickup is scheduled — too late.' : (P ? ' — before the next scheduled pickup on ' + fmtDate(P.date) + '.' : ' with no pickup planned.')) +
-            (fee ? ' Rescheduling today is inside the free window, so a same-day fee applies.' : ' Changing it now is free (more than 1 day ahead).'),
-          impact: { pickups: pd, cost: pd * A.pickupCost + fee, co2: pd * A.co2PerPickup, note: 'Avoids an overflowing container and a customer call.' }
+            (over.pickup ? ', right when the pickup is scheduled — too late.' : (P ? ' — before the next scheduled pickup on ' + fmtDate(P.date) + '.' : ' with no pickup planned.')),
+          impact: { pickups: pd, cost: pd * A.pickupCost, co2: pd * A.co2PerPickup, note: 'Avoids an overflowing container and a customer call.' }
         };
       }
 
@@ -272,7 +314,7 @@ const Model = {
             id: 'underfill|' + c.id + '|' + p.date, type: 'underfill', severity: 'low', cid: c.id, loc: c.loc, ops,
             title: 'Skip pickup ' + fmtDate(p.date) + ' · ' + this.streamLabel(c) + ', ' + L.name,
             reason: 'Forecast is only ' + Math.round(p.fill) + '% full on ' + fmtDate(p.date) + '. Without this pickup the container peaks at ' + Math.round(peak) + '% before the next collection.' + scNote,
-            impact: { pickups: -1, cost: -A.pickupCost, co2: -A.co2PerPickup, note: 'Cancelling is free until 1 day before.' }
+            impact: { pickups: -1, cost: -A.pickupCost, co2: -A.co2PerPickup, note: 'Frees a truck stop without raising overflow risk.' }
           };
           break;
         }
@@ -317,7 +359,6 @@ const Model = {
     const qty = op === 'add' && amount > 1 ? amount + ' × ' : '';
     this.log.unshift({ t: new Date().toISOString(), text: (op === 'add' ? 'Added' : 'Cancelled') + ' pickup manually: ' + qty + this.streamLabel(c) + ', ' + this.loc(c.loc).name + ' on ' + fmtDate(date) });
   },
-  isFree(date) { return Math.round((parseIso(date) - this.today) / 864e5) >= ASSUMPTIONS.freeRescheduleDays; },
 
   /* ---------- persistence ---------- */
   save() {

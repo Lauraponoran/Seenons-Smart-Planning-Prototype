@@ -9,12 +9,25 @@ Everything is synthetic demo data. The styling uses a navy / teal / pink palette
 | Tab | What it demonstrates |
 |---|---|
 | **Overview** | The metrics we assume the platform already shows (orders, weight, separation rate, CO₂, weight by stream) plus new ones: missed-pickup rate by weekday and containers at overflow risk. |
-| **Planner** | Month view with square day cells. Above it: a **Simulate an event** card (Black Friday, Sinterklaas, …) showing the predicted effects and what the agent makes of them. The calendar toolbar has **+ Add pickup** (location, type of waste, amount, date), month navigation and a **Filter** menu (by location and/or waste type). Every pickup is a bar in its waste-type colour with a location tag (AMS, UTR, RTM, SCH); hatched chips marked **AI** are agent suggestions you can review and apply. |
+| **Planner** | Month view with square day cells. Directly under the heading sits the **Demo controls** widget: **Simulate an event** (Black Friday, Sinterklaas, …) and **Reset demo**; picking an event reveals a one-line summary of the predicted effects and what the agent makes of them. The calendar toolbar has month navigation, a blue **Today** button next to the **Filter** menu (by location and/or waste type), and **+ Add pickup** (location, type of waste, amount, date). Every pickup is a bar in its waste-type colour with a location tag (AMS, UTR, RTM, SCH); hatched chips marked **AI** are agent suggestions you can review and apply. Dutch holidays are shown on the days themselves (see *Holidays* below). |
 | **Forecast** | Large fill-level chart per container: sensor history, forecast and pickups. |
 | **AI agent** | Prioritised suggestions with the reasoning and impact (pickups, €, CO₂). Apply, dismiss or apply all; activity log. |
 | **Data & assumptions** | Assumptions stated up front, sensor simulator (move a slider and watch the agent react), and a roadmap of new data collection (IoT sensors, weigh-at-pickup, composition scanning, calendar/behaviour, service events) with fallbacks if the data does not exist. |
 
-Use **Simulate an event** (Black Friday, Sinterklaas, Christmas, summer) to see predictive instead of reactive scheduling.
+Use **Simulate an event** (Black Friday, Sinterklaas, Christmas, summer) to see predictive instead of reactive scheduling. The widget appears under the heading of every tab because the scenario is global: it changes the forecast, the suggestions and the Overview numbers, so the control should be reachable wherever its effect is visible. (To show it on Planner only, make the `eventWidget()` call in `pageHead()` in `app.js` conditional on `ui.tab === 'planner'`.)
+
+## Holidays
+
+The planner marks Dutch holidays, computed per year in `engine.js` (`holidaysFor()`, with the movable feasts derived from Easter) so any month or year you navigate to is right. Two kinds:
+
+- **Public holiday** (pink-tinted day, pink label): New Year's Day, Easter Sunday/Monday, King's Day, Ascension Day, Whit Sunday/Monday, Christmas Day, Boxing Day.
+- **Notable date** (blue label only): Good Friday and Liberation Day (not days off for everyone), plus Black Friday and Sinterklaas, which line up with the simulated scenarios.
+
+**Display-only for now:** the agent does not yet treat public holidays as closed days, so a scheduled pickup can still sit on one. Making `Model.status()` / the recommendation rules holiday-aware is the natural next step; it fits the "holiday calendar" row of the data-collection roadmap.
+
+## Pricing
+
+The prototype deliberately does not model rescheduling or cancellation fees. Cost figures use a flat price per pickup (`ASSUMPTIONS.pickupCost`) and nothing else.
 
 ## How the "agent" works (`engine.js`)
 

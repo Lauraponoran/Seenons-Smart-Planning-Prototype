@@ -61,10 +61,10 @@ const SCENARIOS = {
 
 // Business assumptions used for impact estimates (editable)
 const ASSUMPTIONS = {
+  // NOTE: rescheduling / cancellation fees (same-day fee, free-window) were removed on purpose:
+  // the prototype no longer models any price difference for changing a pickup late.
   pickupCost: 38,        // € per collection
-  sameDayFee: 25,        // € extra when rescheduled less than 1 day before
   co2PerPickup: 4.2,     // kg CO2 per truck stop
-  freeRescheduleDays: 1, // free rescheduling at least 1 day before
   targetFill: 88,        // % — aim to collect below this
   alertFill: 95,         // % — overflow risk threshold
   underfillFill: 32,     // % — pickup considered wasteful below this

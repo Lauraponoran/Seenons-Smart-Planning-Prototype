@@ -27,7 +27,10 @@ function impactChips(r) {
   if (i.note) out.push('<span class="chip">' + i.note + '</span>');
   return out.join('');
 }
-const typeLabel = { overflow: 'Overflow risk', risk: 'Missed-pickup risk', underfill: 'Cost saving', composition: 'Composition' };
+const typeLabel = { overflow: 'Overflow risk', risk: 'Missed-pickup risk', underfill: 'Cost saving', composition: 'Composition', missed: 'Missed pickups', trend: 'Volume trend', mix: 'Waste mix' };
+const findRec = id => [...allRecs(), ...Model.insights(ui.loc, ui.from, ui.to)].find(x => x.id === id);
+/* hover tooltip for chart parts: any element with data-tt (HTML text) shows it next to the cursor */
+const tipBox = document.createElement('div'); tipBox.className = 'tt'; document.body.appendChild(tipBox);
 
 /* page heading (the holiday simulator floats bottom-right, see simulator()) */
 function pageHead(title, sub) {
@@ -80,15 +83,21 @@ function simulator() {
   return '<div class="sim">' + panel + fab + '</div>';
 }
 
-/* heading + widget (+ location select on pages that filter by one location) */
-function pageTop(title, sub, withLoc, withDate) {
+/* location select + From/To dates (the range is shown as real dates) */
+const dShort = s => parseIso(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+function toolbar(withDate) {
   const sel = '<label>Location<select id="locSel"><option value="">All locations</option>' +
     LOCATIONS.map(l => '<option value="' + l.id + '"' + (l.id === ui.loc ? ' selected' : '') + '>' + l.name + '</option>').join('') + '</select></label>';
   const lim = ' min="' + iso(addDays(Model.today, -HISTORY_DAYS)) + '" max="' + iso(Model.today) + '"';
+  const R = Model.buckets(ui.from, ui.to), range = dShort(R.s) + ' – ' + dShort(R.e);
   const dates = !withDate ? '' :
     '<label>From<input type="date" id="fromSel"' + lim + ' value="' + ui.from + '"></label><label>To<input type="date" id="toSel"' + lim + ' value="' + ui.to + '"></label>' +
-    ((ui.from || ui.to) ? '<button class="linkbtn" style="align-self:center" data-act="cleardates">Clear dates</button>' : '<span class="small" style="align-self:center">Showing all 12 weeks</span>');
-  return pageHead(title, sub) + (withLoc ? '<div class="toolbar">' + sel + dates + '</div>' : '');
+    ((ui.from || ui.to) ? '<button class="linkbtn" style="align-self:center" data-act="cleardates">Clear dates</button><span class="small" style="align-self:center">Showing ' + range + '</span>'
+      : '<span class="small" style="align-self:center">Showing the last 12 weeks (' + range + ')</span>');
+  return '<div class="toolbar">' + sel + dates + '</div>';
+}
+function pageTop(title, sub, withLoc, withDate) {
+  return pageHead(title, sub) + (withLoc ? toolbar(withDate) : '');
 }
 
 function chartSvg(c, big) {
@@ -122,8 +131,11 @@ function chartSvg(c, big) {
 const LOC_COL = { l1: '#4DA58A', l2: '#5B93CF', l3: '#F2A65A', l4: '#E5566D' };
 const niceMax = v => { const p = Math.pow(10, Math.floor(Math.log10(Math.max(v, 1)))); return Math.ceil(v / p) * p; };
 const num = n => Math.round(n).toLocaleString('en-GB');
-const weekLbl = i => i === 11 ? 'now' : '−' + (11 - i) + 'w';
 const legendOf = items => '<div class="legend">' + items.map(([c, l]) => '<span><i style="background:' + c + '"></i>' + l + '</span>').join('') + '</div>';
+const escA = t => String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+const FULLDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const labelEvery = n => Math.ceil(n / 6);
+const caption = bk => '<p class="small cap">' + (bk.daily ? 'Each bar is one day.' : 'Each bar is one 7-day period, labelled with its first day.') + ' Hover for amounts.</p>';
 
 function chartStreamLoc(bd, locs) {
   const keys = Object.keys(STREAMS), W = 520, rowH = 34, L = 112, R = 14, H = keys.length * rowH + 26;
@@ -133,10 +145,12 @@ function chartStreamLoc(bd, locs) {
   for (let t = 0; t <= 4; t++) { const v = max * t / 4; s += '<line x1="' + x(v) + '" x2="' + x(v) + '" y1="0" y2="' + (H - 22) + '" stroke="' + COL.grid + '"/><text x="' + x(v) + '" y="' + (H - 6) + '" text-anchor="middle">' + num(v) + '</text>'; }
   keys.forEach((k, i) => {
     const y = i * rowH + 6; let x0 = 0;
+    const total = Object.values(bd.sl[k]).reduce((a, b) => a + b, 0);
     s += '<text x="' + (L - 8) + '" y="' + (y + 15) + '" text-anchor="end">' + STREAMS[k].label + '</text>';
     locs.forEach(l => {
       const v = bd.sl[k][l.id] || 0; if (!v) return;
-      s += '<rect x="' + x(x0) + '" y="' + y + '" width="' + Math.max(1, x(x0 + v) - x(x0)) + '" height="22" rx="3" fill="' + LOC_COL[l.id] + '"><title>' + l.name + ' · ' + kg(v) + '</title></rect>';
+      const tt = '<b>' + STREAMS[k].label + '</b><br>' + l.name + ': <b>' + kg(v) + '</b><br>All locations: ' + kg(total);
+      s += '<rect class="seg" data-tt="' + escA(tt) + '" x="' + x(x0) + '" y="' + y + '" width="' + Math.max(1, x(x0 + v) - x(x0)) + '" height="22" rx="3" fill="' + LOC_COL[l.id] + '"/>';
       x0 += v;
     });
   });
@@ -144,8 +158,9 @@ function chartStreamLoc(bd, locs) {
 }
 
 function chartWeekStack(bd) {
-  const keys = Object.keys(STREAMS), W = 520, H = 220, L = 50, R = 8, T = 10, B = 24, bw = (W - L - R) / 12;
-  const max = niceMax(Math.max(1, ...bd.weeks.map(w => keys.reduce((a, k) => a + (w[k] || 0), 0))));
+  const keys = Object.keys(STREAMS), bk = bd.buckets.list, n = bk.length, W = 520, H = 220, L = 50, R = 8, T = 10, B = 24, bw = (W - L - R) / n, pad = Math.min(4, bw * 0.15), step = labelEvery(n);
+  const totals = bd.weeks.map(w => keys.reduce((a, k) => a + (w[k] || 0), 0));
+  const max = niceMax(Math.max(1, ...totals));
   const y = v => T + (1 - v / max) * (H - T - B);
   let s = '';
   for (let t = 0; t <= 4; t++) { const v = max * t / 4; s += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '" stroke="' + COL.grid + '"/><text x="' + (L - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + num(v) + '</text>'; }
@@ -153,17 +168,18 @@ function chartWeekStack(bd) {
     let cum = 0;
     keys.forEach(k => {
       const v = w[k] || 0; if (!v) return;
-      s += '<rect x="' + (L + i * bw + 4) + '" y="' + y(cum + v) + '" width="' + (bw - 8) + '" height="' + (y(cum) - y(cum + v)) + '" fill="' + STREAMS[k].color + '"><title>' + STREAMS[k].label + ' · ' + kg(v) + '</title></rect>';
+      const tt = '<b>' + bk[i].range + '</b><br>' + STREAMS[k].label + ': <b>' + kg(v) + '</b><br>All streams: ' + kg(totals[i]);
+      s += '<rect class="seg" data-tt="' + escA(tt) + '" x="' + (L + i * bw + pad) + '" y="' + y(cum + v) + '" width="' + (bw - 2 * pad) + '" height="' + (y(cum) - y(cum + v)) + '" fill="' + STREAMS[k].color + '"/>';
       cum += v;
     });
-    if (i % 3 === 0 || i === 11) s += '<text x="' + (L + i * bw + bw / 2) + '" y="' + (H - 6) + '" text-anchor="middle">' + weekLbl(i) + '</text>';
+    if ((n - 1 - i) % step === 0) s += '<text x="' + (L + i * bw + bw / 2) + '" y="' + (H - 6) + '" text-anchor="middle">' + bk[i].label + '</text>';
   });
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Weight over time">' + s + '</svg>' + legendOf(keys.map(k => [STREAMS[k].color, STREAMS[k].label]));
 }
 
 function chartRates(bd) {
-  const W = 520, H = 220, L = 42, R = 10, T = 10, B = 24;
-  const x = i => L + (i + 0.5) / 12 * (W - L - R), y = v => T + (1 - v) * (H - T - B);
+  const bk = bd.buckets.list, n = bk.length, W = 520, H = 220, L = 42, R = 10, T = 10, B = 24, step = labelEvery(n);
+  const x = i => L + (i + 0.5) / n * (W - L - R), y = v => T + (1 - v) * (H - T - B), bw = (W - L - R) / n;
   const pts = bd.weeks.map(w => {
     const t = Object.values(w).reduce((a, b) => a + b, 0); if (!t) return null;
     return { sep: 1 - (w.residual || 0) / t, res: Object.entries(w).reduce((a, [k, v]) => a + v * (STREAMS[k].recovery || 0), 0) / t };
@@ -175,12 +191,18 @@ function chartRates(bd) {
     pts.forEach((p, i) => {
       if (!p) { pen = false; return; }
       d += (pen ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(p[key]).toFixed(1) + ' '; pen = true;
-      dots += '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(p[key]).toFixed(1) + '" r="3" fill="' + col + '"><title>' + pct(p[key]) + '</title></circle>';
+      dots += '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(p[key]).toFixed(1) + '" r="3" fill="' + col + '" style="pointer-events:none"/>';
     });
-    return '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="2.5"/>' + dots;
+    return '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="2.5" style="pointer-events:none"/>' + dots;
   };
-  for (let i = 0; i < 12; i++) if (i % 3 === 0 || i === 11) s += '<text x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="middle">' + weekLbl(i) + '</text>';
-  return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Source separation rate vs resource saved rate">' + s + line('sep', COL.teal) + line('res', '#3C6FA8') + '</svg>' +
+  // one invisible hover column per period: shows both rates at once
+  let hits = '';
+  pts.forEach((p, i) => {
+    const tt = '<b>' + bk[i].range + '</b><br>' + (p ? 'Source separation rate: <b>' + pct(p.sep) + '</b><br>Resource saved rate: <b>' + pct(p.res) + '</b>' : 'No pickups in this period');
+    hits += '<rect class="hit" data-tt="' + escA(tt) + '" x="' + (L + i * bw) + '" y="' + T + '" width="' + bw + '" height="' + (H - T - B) + '"/>';
+  });
+  for (let i = 0; i < n; i++) if ((n - 1 - i) % step === 0) s += '<text x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="middle">' + bk[i].label + '</text>';
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Source separation rate vs resource saved rate">' + s + hits + line('sep', COL.teal) + line('res', '#3C6FA8') + '</svg>' +
     legendOf([[COL.teal, 'Source separation rate'], ['#3C6FA8', 'Resource saved rate']]);
 }
 
@@ -192,9 +214,12 @@ function taskCard(r) {
 }
 function tasksCard() {
   const items = Object.entries(Model.tasks).filter(([, t]) => t && typeof t === 'object' && (!ui.loc || t.loc === ui.loc));
-  return '<div class="card"><h3>Tasks</h3>' + (items.length
-    ? items.map(([id, t]) => '<label class="task' + (t.done ? ' done' : '') + '"><input type="checkbox" data-task="' + id + '"' + (t.done ? ' checked' : '') + '><span>' + t.title + '</span></label>').join('')
-    : '<p class="small">No tasks yet. Create one from a recommended action above.</p>') + '</div>';
+  const row = ([id, t]) => {
+    const tip = t.reason ? t.reason + (t.note ? ' ' + t.note : '') : 'Created from a recommended action.';
+    return '<div class="task' + (t.done ? ' done' : '') + '"><label><input type="checkbox" data-task="' + id + '"' + (t.done ? ' checked' : '') + '><span>' + t.title + '</span></label>' +
+      '<span class="info tip" tabindex="0" role="note" aria-label="Why this task" data-tip="' + escA(tip) + '">i</span></div>';
+  };
+  return '<div class="card"><h3>Tasks</h3>' + (items.length ? items.map(row).join('') : '<p class="small">No tasks yet. Create one from a recommended action above.</p>') + '</div>';
 }
 
 /* ---------------- views ---------------- */
@@ -208,22 +233,25 @@ function viewOverview() {
     return '<tr><td>' + l.name + '</td>' + [1, 2, 3, 4, 5, 6, 0].map(d => {
       if (!ldays.has(d)) return '<td class="heat" style="color:#b6c7c4">–</td>';
       const m = Model.missRate(l.id, d, f, t), a = Math.min(1, m.rate / 0.3);
-      return '<td class="heat" style="background:rgba(229,86,109,' + (0.08 + a * 0.6).toFixed(2) + ')">' + pct(m.rate) + '</td>';
+      const tt = '<b>' + l.name + '</b><br>' + FULLDAY[d] + 's: ' + (m.n < 5 ? 'not enough pickups yet (' + m.n + ')' : Math.round(m.rate * m.n) + ' of ' + m.n + ' pickups missed (' + pct(m.rate) + ')');
+      return '<td class="heat" data-tt="' + escA(tt) + '" style="background:rgba(229,86,109,' + (0.08 + a * 0.6).toFixed(2) + ')">' + pct(m.rate) + '</td>';
     }).join('') + '</tr>';
   }).join('') + '</table>';
-  const acts = viewRecs().filter(r => !r.ops);
+  const rank = { high: 0, medium: 1, low: 2 };
+  const acts = [...viewRecs().filter(r => !r.ops), ...Model.insights(ui.loc, f, t)].sort((a, b) => rank[a.severity] - rank[b.severity]);
   const kpi = (v, l, warn) => '<div class="card kpi ' + (warn ? 'warn' : '') + '"><div class="v">' + v + '</div><div class="l">' + l + '</div></div>';
-  return pageTop('Report', 'What Seenons clients see today, plus ideas from competitors and the market, and how to turn them into next steps.', true, true) +
+  return pageHead('Report', 'What Seenons clients see today, plus ideas from competitors and the market, and how to turn them into next steps.') +
+    '<div class="report-panel">' + toolbar(true) +
     '<div class="grid kpis">' + kpi(k.orders, 'Total orders') + kpi(kg(k.weight), 'Total weight') + kpi(pct(k.separation), 'Source separation rate') +
     kpi(pct(k.resource), 'Resource saved rate') + kpi(kg(k.co2), 'CO₂ saved (demo factors)') +
     kpi(pct(k.missRate), 'Missed pickups (' + k.missed + ')', k.missRate > 0.06) + kpi(over, 'Containers at risk of overflow (14 d)', over) + '</div>' +
     '<h3 class="sec-h">Waste details</h3>' +
-    '<div class="grid cols2"><div class="card"><h3>Weight (kg) by stream and location</h3>' + chartStreamLoc(bd, locs) + '</div>' +
-    '<div class="card"><h3>Weight (kg) over time</h3>' + chartWeekStack(bd) + '</div></div>' +
-    '<div class="grid cols2"><div class="card"><h3>Source separation rate vs resource saved rate</h3>' + chartRates(bd) + '</div>' +
-    '<div class="card"><h3>Missed-pickup rate by weekday <span class="small">— service-event data the agent learns from</span></h3>' + heat + '</div></div>' +
+    '<div class="grid cols2"><div class="card"><h3>Weight (kg) by stream and location</h3><p class="small cap">Hover a bar for amounts.</p>' + chartStreamLoc(bd, locs) + '</div>' +
+    '<div class="card"><h3>Weight (kg) over time</h3>' + caption(bd.buckets) + chartWeekStack(bd) + '</div></div>' +
+    '<div class="grid cols2"><div class="card"><h3>Source separation rate vs resource saved rate</h3>' + caption(bd.buckets) + chartRates(bd) + '</div>' +
+    '<div class="card"><h3>Missed-pickup rate by weekday <span class="small">— service-event data the agent learns from</span></h3><p class="small cap">Hover a cell for the number of missed pickups.</p>' + heat + '</div></div>' +
     '<h3 class="sec-h">Recommended actions</h3>' + (acts.map(taskCard).join('') || '<p class="sub" style="margin-bottom:14px">No open recommendations.</p>') +
-    tasksCard();
+    tasksCard() + '</div>';
 }
 
 /* ----- planner ----- */
@@ -427,6 +455,7 @@ function viewData() {
 
 /* ---------------- render + events ---------------- */
 function render() {
+  tipBox.style.display = 'none'; tipBox._el = null;
   $('#nav').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === ui.tab));
   $('#view').innerHTML = { report: viewOverview, planner: viewPlanner, data: viewData }[ui.tab]() + simulator();
   if (ui.scrollAdd) {
@@ -460,7 +489,7 @@ function init() {
       Model.reset(); Model.scenario = 'normal';
       ui.modal = null; ui.loc = ''; ui.fLocs = []; ui.fStreams = []; ui.filterOpen = false; ui.month = null; ui.simOpen = false; ui.from = ''; ui.to = ''; resetAdd();
     } else if (act === 'apply' || act === 'dismiss') {
-      const r = allRecs().find(x => x.id === d.id);
+      const r = findRec(d.id);
       if (r) { act === 'apply' ? Model.apply(r) : Model.dismiss(r); }
       ui.modal = null;
     } else if (act === 'applyall') {
@@ -503,6 +532,19 @@ function init() {
     }
     render();
   });
+
+  $('#view').addEventListener('mousemove', e => {
+    const el = e.target.closest ? e.target.closest('[data-tt]') : null;
+    if (!el) { tipBox.style.display = 'none'; tipBox._el = null; return; }
+    if (tipBox._el !== el) { tipBox.innerHTML = el.dataset.tt; tipBox._el = el; }
+    tipBox.style.display = 'block';
+    const w = tipBox.offsetWidth, h = tipBox.offsetHeight;
+    let x = e.clientX + 14, y = e.clientY + 14;
+    if (x + w > innerWidth - 8) x = e.clientX - w - 14;
+    if (y + h > innerHeight - 8) y = e.clientY - h - 14;
+    tipBox.style.left = Math.max(8, x) + 'px'; tipBox.style.top = Math.max(8, y) + 'px';
+  });
+  $('#view').addEventListener('mouseleave', () => { tipBox.style.display = 'none'; tipBox._el = null; });
 
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;

@@ -197,18 +197,129 @@ const Model = {
     return { rate: ev.filter(e => !e.picked).length / ev.length, n: ev.length };
   },
 
+  /* ---------- Report time axis: follows the selected From / To dates (default: last 12 weeks) ---------- */
+  buckets(from, to) {
+    const e = to ? parseIso(to) : this.today;
+    let s = from ? parseIso(from) : addDays(this.today, -(HISTORY_DAYS - 1));
+    const lo = addDays(this.today, -HISTORY_DAYS);
+    if (s < lo) s = lo;
+    if (e < s) s = e;
+    const n = Math.round((e - s) / 864e5) + 1, list = [];
+    const dm = d => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    if (n <= 14) {                                   // short range: one bar per day
+      for (let i = 0; i < n; i++) {
+        const d = addDays(s, i);
+        list.push({ a: iso(d), b: iso(d), label: dm(d), range: d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) });
+      }
+    } else {                                         // longer range: one bar per 7 days, the last one ends on the end date
+      const cnt = Math.ceil(n / 7);
+      for (let k = 0; k < cnt; k++) {
+        const b = addDays(e, -7 * (cnt - 1 - k));
+        let a = addDays(b, -6); if (a < s) a = s;
+        list.push({ a: iso(a), b: iso(b), label: dm(a), range: dm(a) + ' – ' + dm(b) });
+      }
+    }
+    return { list, s: iso(s), e: iso(e), daily: n <= 14 };
+  },
+
   /* ---------- chart series for the Report (same filters as kpis) ---------- */
   breakdown(locId, from, to) {
     const ev = this.hist.events.filter(e => e.picked && (!locId || e.loc === locId) && (!from || e.date >= from) && (!to || e.date <= to));
-    const sl = {}, weeks = Array.from({ length: 12 }, () => ({}));
+    const bk = this.buckets(from, to);
+    const sl = {}, weeks = bk.list.map(() => ({}));
     for (const k of Object.keys(STREAMS)) sl[k] = {};
     for (const e of ev) {
       const st = this.cont(e.cid).stream;
       sl[st][e.loc] = (sl[st][e.loc] || 0) + e.weight;
-      const idx = 11 - Math.floor((parseIso(iso(this.today)) - parseIso(e.date)) / 864e5 / 7);
-      if (idx >= 0 && idx < 12) weeks[idx][st] = (weeks[idx][st] || 0) + e.weight;
+      const i = bk.list.findIndex(x => e.date >= x.a && e.date <= x.b);
+      if (i >= 0) weeks[i][st] = (weeks[i][st] || 0) + e.weight;
     }
-    return { sl, weeks };
+    return { sl, weeks, buckets: bk };
+  },
+
+  /* ---------- Report insights: recommended actions read straight from the graphs / heatmap ---------- */
+  insights(locId, from, to) {
+    const A = ASSUMPTIONS, out = [];
+    const DAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const num = n => Math.round(n).toLocaleString('en-GB');
+    const span = (from || to) ? 'in the selected period' : 'over the last 12 weeks';
+    const FIX = {
+      'Wrong container placed': (d, s) => 'Make sure the ' + s.toLowerCase() + ' container is placed at the agreed pickup spot before the truck arrives on ' + d + 's, and label it clearly so the driver can find it.',
+      'Container blocked':      (d)    => 'Keep the access route and pickup spot clear on ' + d + 's: mark the spot and brief site staff to leave it free.',
+      'Access locked':          (d)    => 'Make sure the driver can get in on ' + d + 's: share an access code or leave the gate / door open during the pickup window.',
+      'Truck capacity':         (d)    => 'Ask the disposal partner for a bigger or earlier truck slot on ' + d + 's, or spread the pickups over more days.',
+      'No driver available':    (d)    => 'Ask the disposal partner for a backup driver or a confirmed time slot on ' + d + 's.'
+    };
+    const top = (arr, f) => { const m = {}; arr.forEach(x => { const k = f(x); m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1])[0]; };
+
+    /* 1) missed-pickup hotspots (heatmap): what went wrong on that weekday, and how to prevent it */
+    for (const L of LOCATIONS) {
+      if (locId && L.id !== locId) continue;
+      for (let wd = 0; wd < 7; wd++) {
+        const mr = this.missRate(L.id, wd, from, to);
+        if (mr.rate < A.riskMissRate) continue;
+        const ev = this.hist.events.filter(e => e.loc === L.id && e.weekday === wd && (!from || e.date >= from) && (!to || e.date <= to));
+        const missed = ev.filter(e => !e.picked);
+        if (missed.length < 3) continue;          // 1–2 misses is noise, not a pattern
+        const [reason, rn] = top(missed, e => e.reason), [cid] = top(missed, e => e.cid);
+        const stream = STREAMS[this.cont(cid).stream].label, day = DAY[wd];
+        out.push({
+          id: 'insight-miss|' + L.id + '|' + wd, type: 'missed', severity: mr.rate >= 0.2 ? 'high' : 'medium', loc: L.id, ops: null,
+          title: 'Prevent missed pickups on ' + day + 's · ' + L.name,
+          reason: missed.length + ' of ' + ev.length + ' ' + day + ' pickups at ' + L.name + ' were missed (' + Math.round(mr.rate * 100) + '%) ' + span + '. Most common reason: ' +
+            reason.toLowerCase() + ' (' + rn + '×); ' + stream.toLowerCase() + ' was hit most. ' + (FIX[reason] ? FIX[reason](day, stream) : ''),
+          impact: { pickups: 0, cost: 0, co2: 0, note: 'Could avoid ~' + missed.length + ' repeat pickups (~€' + missed.length * A.pickupCost + ').' }
+        });
+      }
+    }
+
+    /* 2) volume trend (weight-over-time chart): a stream that grew clearly in the latest weeks */
+    const bd = this.breakdown(locId, from, to), W = bd.weeks, n = Math.min(4, Math.floor(W.length / 2));
+    if (!bd.buckets.daily && n >= 2) {
+      const sum = (arr, k) => arr.reduce((a, w) => a + (w[k] || 0), 0);
+      const recent = W.slice(-n), prev = W.slice(-2 * n, -n);
+      let best = null;
+      for (const k of Object.keys(STREAMS)) {
+        const r = sum(recent, k), p = sum(prev, k), ch = p ? r / p - 1 : 0;
+        if (p >= 100 && ch >= 0.2 && r - p >= 50 && (!best || ch > best.ch)) best = { k, r, p, ch };
+      }
+      if (best) {
+        const S = STREAMS[best.k];
+        out.push({
+          id: 'insight-trend|' + (locId || 'all') + '|' + best.k, type: 'trend', severity: 'medium', loc: locId || '', ops: null,
+          title: S.label + ' volume up ' + Math.round(best.ch * 100) + '% in the last ' + n + ' weeks',
+          reason: S.label + ' went from ' + num(best.p) + ' kg to ' + num(best.r) + ' kg compared with the ' + n + ' weeks before. ' +
+            (best.k === 'residual'
+              ? 'More unsorted waste is ending up in residual: share a short separation reminder with staff or put a recycling bin closer to where the waste is produced.'
+              : 'Check that the container is big enough for the extra volume, or plan one more pickup a week, before it starts to overflow.'),
+          impact: { pickups: 0, cost: 0, co2: 0, note: 'Catches growth before it turns into overflow.' }
+        });
+      }
+    }
+
+    /* 3) waste mix (weight by stream and location): a location that sends much more to residual than the others */
+    const all = this.breakdown('', from, to).sl, tot = { res: 0, all: 0 }, per = {};
+    for (const k of Object.keys(STREAMS)) for (const [id, v] of Object.entries(all[k])) {
+      per[id] = per[id] || { res: 0, all: 0 }; per[id].all += v; tot.all += v;
+      if (k === 'residual') { per[id].res += v; tot.res += v; }
+    }
+    if (tot.all) {
+      const avg = tot.res / tot.all;
+      for (const L of LOCATIONS) {
+        const p = per[L.id]; if (!p || p.all < 100 || (locId && L.id !== locId)) continue;
+        const sh = p.res / p.all;
+        if (sh < avg + 0.1) continue;
+        out.push({
+          id: 'insight-mix|' + L.id, type: 'mix', severity: 'low', loc: L.id, ops: null,
+          title: 'Residual is ' + Math.round(sh * 100) + '% of the waste at ' + L.name,
+          reason: Math.round(sh * 100) + '% of what was collected at ' + L.name + ' is residual, against ' + Math.round(avg * 100) + '% across all locations. Residual recovers nothing and is the most expensive stream. Ask the site team what goes in the residual bin and add or relabel a paper or plastic bin where the waste is produced.',
+          impact: { pickups: 0, cost: 0, co2: 0, note: 'Shifts weight to streams that are recovered.' }
+        });
+      }
+    }
+
+    const rank = { high: 0, medium: 1, low: 2 };
+    return out.filter(r => !this.dismissed[r.id] && !this.tasks[r.id]).sort((a, b) => rank[a.severity] - rank[b.severity]);
   },
 
   /* ---------- KPIs from history ---------- */
@@ -362,7 +473,7 @@ const Model = {
       this.overrides = this.applyOps(this.overrides, rec.ops);
       rec.ops.forEach(o => { if (o.op === 'cancel') delete this.amounts[o.cid + '|' + o.date]; });
     }
-    else this.tasks[rec.id] = { title: rec.title, loc: rec.loc, done: false };
+    else this.tasks[rec.id] = { title: rec.title, loc: rec.loc, done: false, reason: rec.reason, note: (rec.impact && rec.impact.note) || '' };
     this.log.unshift({ t: new Date().toISOString(), text: (rec.ops ? 'Applied: ' : 'Task created: ') + rec.title });
   },
   toggleTask(id) { const t = this.tasks[id]; if (t && typeof t === 'object') t.done = !t.done; },

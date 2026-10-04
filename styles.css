@@ -14,7 +14,7 @@ body { margin: 0; display: flex; min-height: 100vh; background: var(--bg); color
 .side { width: 210px; background: var(--teal); color: #fff; padding: 20px 12px; position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 22px; }
 .brand { display: flex; gap: 10px; align-items: center; padding: 0 6px; }
 .brand .logo { width: 36px; height: 36px; background: #fff; color: var(--teal); border-radius: 50%; display: grid; place-items: center; font-size: 19px; }
-.brand b { display: block; font-size: 15px; }
+.brand b { display: block; font-size: 14px; line-height: 1.25; }
 .brand small { opacity: .8; font-size: 11px; }
 nav { display: flex; flex-direction: column; gap: 2px; }
 nav button { text-align: left; background: transparent; border: 0; color: #fff; padding: 10px 14px; border-radius: 8px; cursor: pointer; font: inherit; opacity: .9; }
@@ -226,7 +226,25 @@ svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
 .sim-panel .tip::after { top: auto; bottom: calc(100% + 6px); left: auto; right: 0; width: 250px; }
 
 .sec-h { margin: 22px 0 10px; }
-.task { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+.task { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.task label { display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 0; cursor: pointer; }
 .task:last-child { border-bottom: 0; }
 .task input { accent-color: var(--teal); width: 16px; height: 16px; margin-top: 2px; flex: none; }
-.task.done span { text-decoration: line-through; color: var(--muted); }
+.task.done label span { text-decoration: line-through; color: var(--muted); }
+.info { flex: none; width: 18px; height: 18px; margin-top: 1px; border-radius: 50%; border: 1.5px solid var(--muted); color: var(--muted); font-size: 11px; font-weight: 600; line-height: 1; display: grid; place-items: center; }
+.info:hover, .info:focus-visible { color: var(--teal-d); border-color: var(--teal-d); }
+.task .tip::after { left: auto; right: 0; }
+
+/* ---------- report: white panel with separate widget boxes inside ---------- */
+.report-panel { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px 22px; }
+.report-panel .card { background: #F7F9FB; }
+.report-panel .toolbar { margin-bottom: 16px; }
+.report-panel .sec-h:first-of-type { margin-top: 6px; }
+p.cap { margin: -4px 0 6px; }
+
+/* ---------- chart hover ---------- */
+.tt { position: fixed; z-index: 60; display: none; pointer-events: none; max-width: 260px; background: var(--ink); color: #fff; padding: 8px 11px; border-radius: 6px; font-size: 12px; line-height: 1.5; box-shadow: 0 8px 24px rgba(43,58,66,.25); }
+.seg:hover { stroke: var(--ink); stroke-width: 1.5; }
+.hit { fill: transparent; }
+.hit:hover { fill: rgba(60,111,168,.09); }
+td.heat[data-tt]:hover { outline: 2px solid var(--ink); outline-offset: -2px; }

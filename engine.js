@@ -343,7 +343,7 @@ const Model = {
       if (idx >= 0 && idx < 12) weekly[idx] += e.weight;
     }
     return {
-      orders: picked.length, missed: ev.length - picked.length,
+      orders: picked.length, missed: ev.length - picked.length, full: ev.filter(e => e.fillAtPickup >= ASSUMPTIONS.alertFill).length, pickups: ev.length,
       missRate: ev.length ? (ev.length - picked.length) / ev.length : 0,
       weight: total, byStream, separation: sep, resource: total ? res / total : 0, co2, weekly
     };

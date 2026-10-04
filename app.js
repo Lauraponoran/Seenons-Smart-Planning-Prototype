@@ -4,7 +4,7 @@ const ui = {
   tab: 'planner', loc: '', cid: null, modal: null, month: null,
   fLocs: [], fStreams: [], filterOpen: false,           // planner calendar filters (empty = show all)
   add: { open: false, loc: null, stream: null, amount: 1, date: null, msg: '' },
-  scrollAdd: false, notifAll: false, notifHidden: false, simOpen: false, from: '', to: ''
+  scrollAdd: false, noteOpen: false, notifAll: false, notifHidden: false, simOpen: false, from: '', to: ''
 };
 const $ = s => document.querySelector(s);
 const eur = n => (n < 0 ? '−' : n > 0 ? '+' : '') + '€' + Math.abs(Math.round(n));
@@ -150,7 +150,7 @@ function chartStreamLoc(bd, locs) {
     locs.forEach(l => {
       const v = bd.sl[k][l.id] || 0; if (!v) return;
       const tt = '<b>' + STREAMS[k].label + '</b><br>' + l.name + ': <b>' + kg(v) + '</b><br>All locations: ' + kg(total);
-      s += '<rect class="seg" data-tt="' + escA(tt) + '" x="' + x(x0) + '" y="' + y + '" width="' + Math.max(1, x(x0 + v) - x(x0)) + '" height="22" rx="3" fill="' + LOC_COL[l.id] + '"/>';
+      s += '<rect class="seg" data-tt="' + escA(tt) + '" x="' + x(x0) + '" y="' + y + '" width="' + Math.max(1, x(x0 + v) - x(x0)) + '" height="22" fill="' + LOC_COL[l.id] + '"/>';
       x0 += v;
     });
   });
@@ -212,21 +212,27 @@ function taskCard(r) {
     '<h4>' + r.title + '</h4><p>' + r.reason + '</p><div>' + impactChips(r) + '</div></div>' +
     '<div class="acts"><button class="btn" data-act="apply" data-id="' + r.id + '">Create task</button><button class="btn sec" data-act="dismiss" data-id="' + r.id + '">Dismiss</button></div></div>';
 }
-function tasksCard() {
-  const items = Object.entries(Model.tasks).filter(([, t]) => t && typeof t === 'object' && (!ui.loc || t.loc === ui.loc));
+/* friendly to-do notebook, top-right corner (Report and Recommendations pages) */
+function notebook() {
+  const items = Object.entries(Model.tasks).filter(([, t]) => t && typeof t === 'object');
+  const open = items.filter(([, t]) => !t.done).length;
   const row = ([id, t]) => {
     const tip = t.reason ? t.reason + (t.note ? ' ' + t.note : '') : 'Created from a recommended action.';
-    return '<div class="task' + (t.done ? ' done' : '') + '"><label><input type="checkbox" data-task="' + id + '"' + (t.done ? ' checked' : '') + '><span>' + t.title + '</span></label>' +
-      '<span class="info tip" tabindex="0" role="note" aria-label="Why this task" data-tip="' + escA(tip) + '">i</span></div>';
+    return '<div class="nb-task' + (t.done ? ' done' : '') + '"><label><input type="checkbox" data-task="' + id + '"' + (t.done ? ' checked' : '') + '><span>' + t.title + '</span></label>' +
+      '<span class="info" tabindex="0" role="note" aria-label="Why this task" data-tt="' + escA(tip) + '">i</span></div>';
   };
-  return '<div class="card"><h3>Tasks</h3>' + (items.length ? items.map(row).join('') : '<p class="small">No tasks yet. Create one from a recommended action above.</p>') + '</div>';
+  const panel = !ui.noteOpen ? '' :
+    '<div class="nb-panel" role="dialog" aria-label="My notebook"><button class="nb-x" data-act="notetoggle" aria-label="Close notebook">×</button>' +
+    '<h4>My notebook ✏️</h4><p class="nb-sub">' + (items.length ? (open ? open + ' thing' + (open > 1 ? 's' : '') + ' to do' : 'All done, nice work! 🎉') : 'Your to-dos live here') + '</p>' +
+    '<div class="nb-list">' + (items.length ? items.map(row).join('') : '<p class="nb-empty">Nothing here yet. Hit <b>Create task</b> on a recommendation and it lands in this notebook.</p>') + '</div></div>';
+  return '<div class="nb">' + panel + '<button class="nb-btn" data-act="notetoggle" aria-expanded="' + !!ui.noteOpen + '" aria-label="Open notebook" title="My notebook">📓' +
+    (open ? '<span class="nb-n">' + open + '</span>' : '') + '</button></div>';
 }
 
 /* ---------------- views ---------------- */
 function viewOverview() {
   const f = ui.from, t = ui.to;
   const k = Model.kpis(ui.loc, f, t), bd = Model.breakdown(ui.loc, f, t);
-  const over = viewRecs().filter(r => r.type === 'overflow').length;
   const locs = LOCATIONS.filter(l => !ui.loc || l.id === ui.loc);
   const heat = '<table><tr><th>Location</th>' + [1, 2, 3, 4, 5, 6, 0].map(d => '<th>' + WD[d] + '</th>').join('') + '</tr>' + locs.map(l => {
     const ldays = new Set(CONTAINERS.filter(c => c.loc === l.id).flatMap(c => c.days));
@@ -237,21 +243,30 @@ function viewOverview() {
       return '<td class="heat" data-tt="' + escA(tt) + '" style="background:rgba(229,86,109,' + (0.08 + a * 0.6).toFixed(2) + ')">' + pct(m.rate) + '</td>';
     }).join('') + '</tr>';
   }).join('') + '</table>';
-  const rank = { high: 0, medium: 1, low: 2 };
-  const acts = [...viewRecs().filter(r => !r.ops), ...Model.insights(ui.loc, f, t)].sort((a, b) => rank[a.severity] - rank[b.severity]);
-  const kpi = (v, l, warn) => '<div class="card kpi ' + (warn ? 'warn' : '') + '"><div class="v">' + v + '</div><div class="l">' + l + '</div></div>';
-  return pageHead('Report', 'What Seenons clients see today, plus ideas from competitors and the market, and how to turn them into next steps.') +
+  const kpi = (v, l, warn, tt) => '<div class="card kpi ' + (warn ? 'warn' : '') + '"' + (tt ? ' data-tt="' + escA(tt) + '"' : '') + '><div class="v">' + v + '</div><div class="l">' + l + '</div></div>';
+  return pageHead('Report', 'What Seenons clients see today, plus ideas from competitors and the market.') +
     '<div class="report-panel">' + toolbar(true) +
-    '<div class="grid kpis">' + kpi(k.orders, 'Total orders') + kpi(kg(k.weight), 'Total weight') + kpi(pct(k.separation), 'Source separation rate') +
-    kpi(pct(k.resource), 'Resource saved rate') + kpi(kg(k.co2), 'CO₂ saved (demo factors)') +
-    kpi(pct(k.missRate), 'Missed pickups (' + k.missed + ')', k.missRate > 0.06) + kpi(over, 'Containers at risk of overflow (14 d)', over) + '</div>' +
+    '<h3 class="sec-h">Summary Statistics</h3>' +
+    '<div class="grid kpis">' + kpi(k.orders, 'Orders', false, 'Total orders picked up in this period.') + kpi(kg(k.weight), 'Weight', false, 'Total weight collected in this period.') +
+    kpi(pct(k.separation), 'Separation rate', false, 'Source separation rate: share of the weight that was not residual.') +
+    kpi(pct(k.resource), 'Resource saved', false, 'Resource saved rate: share of the weight that was recycled or recovered (demo factors).') +
+    kpi(kg(k.co2), 'CO₂ saved', false, 'CO₂ saved by recycling, using demo factors per stream.') +
+    kpi(pct(k.missRate), 'Missed pickups', k.missRate > 0.06, k.missed + ' of ' + k.pickups + ' scheduled pickups were missed in this period.') +
+    kpi(k.full, 'Full at pickup', k.full > 0, 'Pickups where the container was already at least ' + ASSUMPTIONS.alertFill + '% full, so it was at risk of overflowing.') + '</div>' +
     '<h3 class="sec-h">Waste details</h3>' +
     '<div class="grid cols2"><div class="card"><h3>Weight (kg) by stream and location</h3><p class="small cap">Hover a bar for amounts.</p>' + chartStreamLoc(bd, locs) + '</div>' +
     '<div class="card"><h3>Weight (kg) over time</h3>' + caption(bd.buckets) + chartWeekStack(bd) + '</div></div>' +
     '<div class="grid cols2"><div class="card"><h3>Source separation rate vs resource saved rate</h3>' + caption(bd.buckets) + chartRates(bd) + '</div>' +
-    '<div class="card"><h3>Missed-pickup rate by weekday <span class="small">— service-event data the agent learns from</span></h3><p class="small cap">Hover a cell for the number of missed pickups.</p>' + heat + '</div></div>' +
-    '<h3 class="sec-h">Recommended actions</h3>' + (acts.map(taskCard).join('') || '<p class="sub" style="margin-bottom:14px">No open recommendations.</p>') +
-    tasksCard() + '</div>';
+    '<div class="card"><h3>Missed-pickup rate by weekday <span class="small">— service-event data the agent learns from</span></h3><p class="small cap">Hover a cell for the number of missed pickups.</p>' + heat + '</div></div></div>';
+}
+
+function viewActions() {
+  const rank = { high: 0, medium: 1, low: 2 };
+  const acts = [...viewRecs().filter(r => !r.ops), ...Model.insights(ui.loc, ui.from, ui.to)].sort((a, b) => rank[a.severity] - rank[b.severity]);
+  return pageHead('Recommendations', 'Suggested next steps from your waste data. Create a task to save one to your notebook.') +
+    '<div class="report-panel">' + toolbar(true) +
+    '<h3 class="sec-h">Recommended actions <span class="small">(' + acts.length + ')</span></h3>' +
+    (acts.map(taskCard).join('') || '<p class="sub">No open recommendations for this selection.</p>') + '</div>';
 }
 
 /* ----- planner ----- */
@@ -432,7 +447,7 @@ function plannerModal() {
 function render() {
   tipBox.style.display = 'none'; tipBox._el = null;
   $('#nav').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === ui.tab));
-  $('#view').innerHTML = { report: viewOverview, planner: viewPlanner }[ui.tab]() + simulator();
+  $('#view').innerHTML = { report: viewOverview, recs: viewActions, planner: viewPlanner }[ui.tab]() + simulator() + (ui.tab === 'planner' ? '' : notebook());
   if (ui.scrollAdd) {
     ui.scrollAdd = false;
     const el = document.querySelector('.addform');
@@ -465,7 +480,7 @@ function init() {
       ui.modal = null; ui.loc = ''; ui.fLocs = []; ui.fStreams = []; ui.filterOpen = false; ui.month = null; ui.simOpen = false; ui.from = ''; ui.to = ''; resetAdd();
     } else if (act === 'apply' || act === 'dismiss') {
       const r = findRec(d.id);
-      if (r) { act === 'apply' ? Model.apply(r) : Model.dismiss(r); }
+      if (r) { act === 'apply' ? Model.apply(r) : Model.dismiss(r); if (act === 'apply' && !r.ops) ui.noteOpen = true; }
       ui.modal = null;
     } else if (act === 'applyall') {
       for (let i = 0; i < 100; i++) { const r = allRecs().find(x => x.ops); if (!r) break; Model.apply(r); }
@@ -477,6 +492,7 @@ function init() {
     else if (act === 'notiftoggle') ui.notifHidden = !ui.notifHidden;
     else if (act === 'cleardates') { ui.from = ''; ui.to = ''; }
     else if (act === 'simtoggle') ui.simOpen = !ui.simOpen;
+    else if (act === 'notetoggle') ui.noteOpen = !ui.noteOpen;
     else if (act === 'notifmore') ui.notifAll = !ui.notifAll;
     else if (act === 'scenario') Model.scenario = d.val;
     else if (act === 'togglefilter') ui.filterOpen = !ui.filterOpen;
@@ -523,7 +539,7 @@ function init() {
 
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
-    if (ui.modal) ui.modal = null; else if (ui.filterOpen) ui.filterOpen = false; else if (ui.simOpen) ui.simOpen = false; else return;
+    if (ui.modal) ui.modal = null; else if (ui.filterOpen) ui.filterOpen = false; else if (ui.simOpen) ui.simOpen = false; else if (ui.noteOpen) ui.noteOpen = false; else return;
     render();
   });
 

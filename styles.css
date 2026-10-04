@@ -203,12 +203,16 @@ svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
 
 /* ---------- agent notifications (planner, top-right corner) ---------- */
 .notifs { position: fixed; top: 16px; right: 0; z-index: 35; display: flex; align-items: flex-start; }
-.notifs.hidden { transform: translateX(calc(100% - 34px)); }
-.notifs.hidden .notif-stack { visibility: hidden; }
+.notifs.hidden { transform: translateX(calc(100% - 52px)); }
+.notifs.hidden .notif-stack { width: min(340px, calc(100vw - 70px)); max-height: calc(100vh - 32px); overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 0 16px 4px 0; }
 .notif-stack { width: min(340px, calc(100vw - 60px)); max-height: calc(100vh - 32px); overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 0 16px 4px 0; }
-.notif-tab { flex: none; width: 34px; writing-mode: vertical-rl; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 0; background: var(--teal); color: #fff; border: 0; border-radius: 8px 0 0 8px; font: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; box-shadow: -2px 4px 14px rgba(43,58,66,.18); }
-.notif-tab:hover { background: var(--teal-d); }
-.notif-n { background: #fff; color: var(--teal-d); border-radius: 99px; min-width: 20px; padding: 2px 0; font-size: 11px; font-weight: 600; text-align: center; }
+/* open: small round collapse handle beside the stack; collapsed: teal edge handle with the count */
+.notif-tab { flex: none; width: 28px; height: 28px; margin: 8px 6px 0 0; display: flex; align-items: center; justify-content: center; gap: 6px; background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 50%; font: inherit; font-size: 18px; line-height: 1; cursor: pointer; box-shadow: 0 2px 8px rgba(43,58,66,.18); }
+.notif-tab:hover { background: var(--teal-l); }
+.notif-n { display: none; background: #fff; color: var(--teal-d); border-radius: 99px; min-width: 22px; padding: 1px 6px; font-size: 12px; font-weight: 600; text-align: center; }
+.notifs.hidden .notif-tab { width: 52px; height: 40px; margin: 0; background: var(--teal); color: #fff; border: 0; border-radius: 20px 0 0 20px; box-shadow: -2px 3px 12px rgba(43,58,66,.2); }
+.notifs.hidden .notif-tab:hover { background: var(--teal-d); }
+.notifs.hidden .notif-n { display: inline-block; }
 .toast { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--teal); border-radius: 8px; box-shadow: 0 8px 24px rgba(43,58,66,.16); padding: 9px 12px 11px; }
 .toast.high { border-left-color: var(--pink); }
 .toast.medium { border-left-color: var(--blue); }

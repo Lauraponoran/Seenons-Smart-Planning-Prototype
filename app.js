@@ -75,8 +75,9 @@ function simulator() {
     '<button class="sim-x" data-act="simtoggle" aria-label="Close">×</button></div>' +
     '<p class="small sim-intro">Pick an event to see how the forecast and the agent\'s suggestions react.</p><div class="sim-opts">' + opts + '</div>' +
     eventLine() + '<button class="sim-reset" data-act="reset">Reset demo</button></div>';
-  return '<div class="sim">' + panel + '<button class="sim-fab" data-act="simtoggle" aria-expanded="' + ui.simOpen + '">Holiday simulator' +
-    (active ? '<span class="sim-badge">' + sc.short + '</span>' : '') + '</button></div>';
+  const fab = ui.simOpen ? '' : '<button class="sim-fab" data-act="simtoggle" aria-expanded="false">Holiday simulator' +
+    (active ? '<span class="sim-badge">' + sc.short + '</span>' : '') + '</button>';
+  return '<div class="sim">' + panel + fab + '</div>';
 }
 
 /* heading + widget (+ location select on pages that filter by one location) */
@@ -279,7 +280,8 @@ function notifications() {
     (sched > 1 ? '<button class="btn sm" data-act="applyall">Apply all schedule changes</button>' : '');
   // pull-out tab: the stack slides off to the right edge, the tab (with the count) stays visible
   return '<div class="notifs' + (ui.notifHidden ? ' hidden' : '') + '" aria-live="polite">' +
-    '<button class="notif-tab" data-act="notiftoggle" aria-expanded="' + !ui.notifHidden + '" title="' + (ui.notifHidden ? 'Show' : 'Hide') + ' AI suggestions">AI suggestions<span class="notif-n">' + recs.length + '</span></button>' +
+    '<button class="notif-tab" data-act="notiftoggle" aria-expanded="' + !ui.notifHidden + '" aria-label="' + (ui.notifHidden ? 'Show' : 'Hide') + ' AI suggestions" title="' + (ui.notifHidden ? 'Show' : 'Hide') + ' AI suggestions">' +
+    '<span class="nt-ch">' + (ui.notifHidden ? '‹' : '›') + '</span><span class="notif-n">' + recs.length + '</span></button>' +
     '<div class="notif-stack">' + toasts + (foot ? '<div class="notif-foot">' + foot + '</div>' : '') + '</div></div>';
 }
 
@@ -393,9 +395,7 @@ function init() {
       if (r) { act === 'apply' ? Model.apply(r) : Model.dismiss(r); }
       ui.modal = null;
     } else if (act === 'applyall') {
-      allRecs().filter(r => r.ops).forEach(() => {
-        const r = allRecs().find(x => x.ops); if (r) Model.apply(r);
-      });
+      for (let i = 0; i < 100; i++) { const r = allRecs().find(x => x.ops); if (!r) break; Model.apply(r); }
     } else if (act === 'selpk') ui.modal = { kind: 'pk', cid: d.cid, date: d.date };
     else if (act === 'selghost') ui.modal = { kind: 'ghost', id: d.id };
     else if (act === 'selday') ui.modal = { kind: 'day', date: d.date };

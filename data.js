@@ -72,3 +72,28 @@ const ASSUMPTIONS = {
   riskMissRate: 0.15,    // weekday miss rate that triggers a "move pickup" suggestion
   safeMissRate: 0.08     // acceptable miss rate for an alternative weekday
 };
+
+// Why each effect is what it is: shown in the tooltip when hovering a percentage in the "What if…?" widget.
+// (Demo assumptions. A real model would learn these from past years' pickup history.)
+const SCENARIO_WHY = {
+  blackfri: {
+    'Retail':          'Black Friday brings crowds into the stores and a lot of packaging, paper and cardboard out the back. We assume 60% more waste than a normal week.',
+    'Office':          'Offices keep their normal weekday rhythm during Black Friday, so no change is expected.',
+    'Food & Beverage': 'More shoppers means more coffee and snacks, but food service only sees a small bump: about 15% extra.'
+  },
+  sinter: {
+    'Retail':          'Gift wrapping, boxes and paper bags pile up around Sinterklaas. We assume 45% more waste, mostly paper and residual.',
+    'Office':          'A few colleagues take time off, so offices produce slightly less: about 5% down.',
+    'Food & Beverage': 'Seasonal treats and busier foot traffic add about 20% more waste.'
+  },
+  xmas: {
+    'Retail':          'Christmas shopping is the biggest retail peak of the year. We assume 50% more waste than normal.',
+    'Office':          'Most offices are quiet or closed in the Christmas weeks, so waste drops by about 40%.',
+    'Food & Beverage': 'Travellers and festive visitors keep cafés and kiosks busy: about 35% more waste.'
+  },
+  summer: {
+    'Retail':          'Summer slows shopping a little, so we assume about 10% less waste.',
+    'Office':          'Many colleagues are on holiday and offices run at reduced capacity. We assume 45% less waste.',
+    'Food & Beverage': 'Holiday travel and terrace weather keep hospitality busy: about 30% more waste.'
+  }
+};

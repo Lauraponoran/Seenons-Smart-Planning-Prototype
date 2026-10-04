@@ -50,11 +50,11 @@ function pageHead(title, sub) {
    segmented control — one click per scenario instead of a dropdown — plus Reset demo.
    Picking an event reveals the info line (effects + overflow count) inside the strip. */
 function eventWidget() {
-  const seg = Object.entries(SCENARIOS).map(([k, v]) =>
-    '<button class="seg-btn' + (k === Model.scenario ? ' on' : '') + '" data-act="scenario" data-val="' + k + '" aria-pressed="' + (k === Model.scenario) + '" title="' + v.label + '">' + (v.short || v.label) + '</button>').join('');
-  return '<div class="sim-card"><div class="sim-row"><span class="sim-label">Simulate an event</span>' +
-    '<div class="seg" role="group" aria-label="Simulate an event">' + seg + '</div>' +
-    '<button class="btn sec sm sim-reset" data-act="reset">↺ Reset demo</button></div>' + eventLine() + '</div>';
+  const pills = Object.entries(SCENARIOS).map(([k, v]) =>
+    '<button class="wi-pill' + (k === Model.scenario ? ' on' : '') + '" data-act="scenario" data-val="' + k + '" aria-pressed="' + (k === Model.scenario) + '">' + (v.short || v.label) + '</button>').join('');
+  return '<section class="whatif"><div class="wi-top"><div class="wi-title"><b>What if…?</b><span>Pick an event and watch the agent plan ahead</span></div>' +
+    '<div class="wi-pills" role="group" aria-label="Simulate an event">' + pills + '</div>' +
+    '<button class="wi-reset" data-act="reset">Reset demo</button></div>' + eventLine() + '</section>';
 }
 
 /* one-line summary of the simulated event: effects on waste volume and the agent's reaction */
@@ -73,11 +73,18 @@ function scenarioEffects() {
 }
 function eventLine() {
   if (Model.scenario === 'normal') return '';
-  const sc = SCENARIOS[Model.scenario], fx = scenarioEffects(), n = fx.now.overflow;
-  // one chip per location type: pink when volume goes up, green when it goes down, grey when unchanged
-  const effects = Object.entries(sc.mult).map(([t, m]) => '<span class="chip ' + (m > 1 ? 'up' : m < 1 ? 'down' : '') + '">' + t + ' ' + pctDelta(m) + '</span>').join('');
-  return '<div class="ev-line"><span class="ev-name">' + sc.label + '</span>' + effects +
-    '<span class="chip ' + (n > fx.base.overflow ? 'bad' : '') + '">' + n + ' overflow risk' + (n === 1 ? '' : 's') + ' (' + fx.base.overflow + ' normally)</span></div>';
+  const sc = SCENARIOS[Model.scenario], why = (typeof SCENARIO_WHY !== 'undefined' && SCENARIO_WHY[Model.scenario]) || {};
+  const fx = scenarioEffects(), n = fx.now.overflow;
+  const esc = t => String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  // one tile per location type; hover / focus / tap the percentage to see why it is what it is
+  const tiles = Object.entries(sc.mult).map(([t, m]) => {
+    const tip = (why[t] || '') + ' The forecast fill rate for every ' + t.toLowerCase() + ' container is multiplied by ' + m + '.';
+    return '<div class="fx tip ' + (m > 1 ? 'up' : m < 1 ? 'down' : '') + '" tabindex="0" data-tip="' + esc(tip) + '"><span class="fx-v">' + pctDelta(m) + '</span><span class="fx-l">' + t + '</span></div>';
+  }).join('');
+  const riskTip = 'Containers the agent expects to reach ' + ASSUMPTIONS.alertFill + '% full within 14 days, before their next pickup. ' +
+    (n > fx.base.overflow ? 'The higher waste volumes fill them faster, so ' + (n - fx.base.overflow) + ' more than normal now need action.' : 'This event does not add any new overflow risks.');
+  const risk = '<div class="fx risk tip" tabindex="0" data-tip="' + esc(riskTip) + '"><span class="fx-v">' + n + '</span><span class="fx-l">overflow risk' + (n === 1 ? '' : 's') + ' · ' + fx.base.overflow + ' normally</span></div>';
+  return '<div class="wi-fx">' + (sc.note ? '<p class="wi-note">' + sc.note + '</p>' : '') + tiles + risk + '</div>';
 }
 
 /* heading + widget (+ location select on pages that filter by one location) */

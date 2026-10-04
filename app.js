@@ -428,36 +428,11 @@ function plannerModal() {
   return '<div class="modal-bg" data-act="closemodal"><div class="modal" role="dialog">' + body + '</div></div>';
 }
 
-function viewData() {
-  const A = ASSUMPTIONS;
-  const rows = containersInView().map(c => {
-    const cur = Math.round(Model.currentFill(c)), sim = Model.simulate(c), over = sim.find(p => p.fill >= A.alertFill);
-    return '<tr><td>' + Model.contLabel(c) + '</td><td><input type="range" min="0" max="100" value="' + cur + '" data-fill="' + c.id + '"> <b id="fv-' + c.id + '">' + cur + '%</b></td><td>' +
-      Model.measuredRate(c).toFixed(1) + '%/day</td><td>' + c.days.map(d => WD[d]).join(', ') + '</td><td>' + (over ? '<span class="chip bad">full ' + fmtDate(over.date) + '</span>' : '<span class="chip good">ok 14 d</span>') + '</td></tr>';
-  }).join('');
-  const roadmap = [
-    ['Container fill level', 'Not available — relies on disposal partner', 'Ultrasonic / weight sensors in containers (LoRaWAN / NB-IoT → MQTT)', 'Forecast when a container is full; pickup only when needed', 'Customer taps “container full?” in the app; estimate from past weights'],
-    ['Actual weight at pickup', 'Arrives late via partner receipt / invoice', 'Truck-scale or bin-lift weighing posted via partner API', 'Cost per kg, fill-rate calibration', 'Parse invoices (OCR) and back-fill weights'],
-    ['Waste composition', 'Not available', 'Camera + computer vision, automated scanner, periodic audits', 'Contamination alerts, bin-mix advice', 'Quarterly manual audit, photo upload by site staff'],
-    ['Time, season & company behaviour', 'Order dates only', 'Holiday calendar, company type, site size, opening hours', 'Predictive instead of reactive scheduling', 'Ask for opening hours and peak periods during onboarding'],
-    ['Collection / service events', 'Customer calls (9 in 10 = “not picked up”)', 'Driver app: scheduled vs actual time, reason for failed pickup, route data', 'Missed-pickup risk by location and weekday', 'Log customer complaints as structured tickets']
-  ].map(r => '<tr>' + r.map((x, i) => '<td' + (i === 0 ? ' style="font-weight:600"' : '') + '>' + x + '</td>').join('') + '</tr>').join('');
-  return pageTop('Data &amp; assumptions', 'Everything the prototype takes for granted, and what we would add.', true) +
-    '<div class="card" style="margin-bottom:14px"><h3>Assumptions made in this prototype</h3><ul>' +
-    '<li>Disposal partners deliver pickup status and weights; the platform already has orders, weight, separation rate and CO₂ per stream.</li>' +
-    '<li>New: fill-level sensors report daily (here simulated; use the sliders below to change a reading and watch the agent react).</li>' +
-    '<li>Costs: €' + A.pickupCost + ' per pickup, ' + A.co2PerPickup + ' kg CO₂ per truck stop, overflow threshold ' + A.alertFill + '% (all demo values).</li>' +
-    '<li>Simulated events (Black Friday, Sinterklaas, Christmas, summer) are simple multipliers per company type; the real model would learn them from history.</li>' +
-    '<li>All locations, containers and history in this demo are synthetic.</li></ul></div>' +
-    '<div class="card" style="margin-bottom:14px"><h3>Sensor simulator</h3><table><tr><th>Container</th><th>Fill level now</th><th>Measured rate</th><th>Scheduled</th><th>Forecast</th></tr>' + rows + '</table></div>' +
-    '<div class="card"><h3>Data collection roadmap</h3><table><tr><th>Data point</th><th>Today (assumed)</th><th>Proposed collection</th><th>Used by agent for</th><th>If data is missing</th></tr>' + roadmap + '</table></div>';
-}
-
 /* ---------------- render + events ---------------- */
 function render() {
   tipBox.style.display = 'none'; tipBox._el = null;
   $('#nav').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === ui.tab));
-  $('#view').innerHTML = { report: viewOverview, planner: viewPlanner, data: viewData }[ui.tab]() + simulator();
+  $('#view').innerHTML = { report: viewOverview, planner: viewPlanner }[ui.tab]() + simulator();
   if (ui.scrollAdd) {
     ui.scrollAdd = false;
     const el = document.querySelector('.addform');

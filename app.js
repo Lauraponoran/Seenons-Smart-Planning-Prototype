@@ -83,7 +83,7 @@ function eventLine() {
   }).join('');
   const riskTip = 'Containers the agent expects to reach ' + ASSUMPTIONS.alertFill + '% full within 14 days, before their next pickup. ' +
     (n > fx.base.overflow ? 'The higher waste volumes fill them faster, so ' + (n - fx.base.overflow) + ' more than normal now need action.' : 'This event does not add any new overflow risks.');
-  const risk = '<div class="fx risk tip" tabindex="0" data-tip="' + esc(riskTip) + '"><span class="fx-l">Overflow risks</span><span class="fx-v">' + n + '</span><span class="fx-l">(' + fx.base.overflow + ' normally)</span></div>';
+  const risk = '<div class="fx risk tip" tabindex="0" data-tip="' + esc(riskTip) + '"><span class="fx-l">Overflow risks · ' + fx.base.overflow + ' normally</span><span class="fx-v">' + n + '</span></div>';
   return '<div class="wi-fx">' + (sc.note ? '<p class="wi-note">' + sc.note + '</p>' : '') + tiles + risk + '</div>';
 }
 
@@ -270,7 +270,7 @@ function viewPlanner() {
     '<span class="cal-sep"></span><button class="btn" data-act="toggleadd">+ Add pickup</button></div></div>' +
     addForm() + activeRow +
     '<div class="cal">' + head + cells + '</div>' +
-    '<p class="foot-key">Colour = waste type · tag = location · dashed <span class="ai-demo">AI</span> = suggestion from the agent · pink day = public holiday · blue label = notable date</p></div>' + plannerModal();
+    '</div>' + plannerModal();
 }
 
 function plannerModal() {

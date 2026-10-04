@@ -94,12 +94,12 @@ svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
 .wi-reset:hover { color: var(--ink); }
 .wi-fx { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 0 12px; border-top: 1px solid var(--line); }
 .wi-note { flex: 1 1 100%; margin: 0 0 2px; font-size: 12.5px; color: var(--muted); }
-.fx { display: inline-flex; align-items: baseline; gap: 6px; background: #F4F6F8; border-radius: 6px; padding: 5px 11px; font-size: 12.5px; }
-.fx-v { font-weight: 600; border-bottom: 1px dotted currentColor; }
-.fx-l { color: var(--muted); }
-.fx.up { background: var(--pink-l); } .fx.up .fx-v { color: var(--pink-d); }
-.fx.down { background: var(--teal-l); } .fx.down .fx-v { color: var(--green); }
-.fx.risk { background: var(--pink-l); } .fx.risk .fx-v { color: var(--pink-d); }
+.fx { display: flex; flex-direction: column; gap: 1px; padding-right: 20px; margin-right: 6px; border-right: 1px solid var(--line); }
+.fx:last-child { border-right: 0; margin-right: 0; padding-right: 0; }
+.fx-l { font-size: 12px; color: var(--muted); }
+.fx-v { font-size: 18px; font-weight: 600; width: fit-content; border-bottom: 1px dotted currentColor; line-height: 1.3; }
+.fx.up .fx-v, .fx.risk .fx-v { color: var(--pink-d); }
+.fx.down .fx-v { color: var(--green); }
 /* hover / keyboard-focus / tap explanation; the text lives in data-tip */
 .tip { position: relative; cursor: help; }
 .tip::after { content: attr(data-tip); position: absolute; left: 0; top: calc(100% + 8px); width: 270px; background: var(--ink); color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 12px; font-weight: 400; line-height: 1.45; text-align: left; box-shadow: 0 8px 24px rgba(43,58,66,.25); opacity: 0; visibility: hidden; transition: opacity .12s; z-index: 30; pointer-events: none; }

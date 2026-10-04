@@ -37,13 +37,15 @@ function recCard(r) {
     '<button class="btn sec" data-act="dismiss" data-id="' + r.id + '">Dismiss</button></div></div>';
 }
 
-/* page heading (left) + Reset demo (right), the same on every page */
+/* page heading (left); event picker + Reset demo (right) */
 function pageHead(title, sub) {
+  const opts = Object.entries(SCENARIOS).map(([k, v]) => '<option value="' + k + '"' + (k === Model.scenario ? ' selected' : '') + '>' + v.label + '</option>').join('');
   return '<div class="page-head"><div><h2>' + title + '</h2>' + (sub ? '<p class="sub">' + sub + '</p>' : '') + '</div>' +
-    '<button class="btn sec" data-act="reset">Reset demo</button></div>';
+    '<div class="head-actions"><label class="ev-inline">Simulate an event<select id="scSel">' + opts + '</select></label>' +
+    '<button class="btn sec" data-act="reset">Reset demo</button></div></div>';
 }
 
-/* "Simulate an event" card: pick an event, see predicted effects and what the agent makes of it */
+/* one-line summary of the simulated event: effects on waste volume and the agent's reaction */
 function pctDelta(m) {
   const p = Math.round((m - 1) * 100);
   return p === 0 ? 'unchanged' : (p > 0 ? '+' : '−') + Math.abs(p) + '%';
@@ -57,30 +59,21 @@ function scenarioEffects() {
   Model.scenario = keep;
   return { now, base };
 }
-function eventCard() {
-  const key = Model.scenario, sc = SCENARIOS[key];
-  const opts = Object.entries(SCENARIOS).map(([k, v]) => '<option value="' + k + '"' + (k === key ? ' selected' : '') + '>' + v.label + '</option>').join('');
-  const select = '<label class="ev-pick"><span>Simulate an event</span><select id="scSel">' + opts + '</select></label>';
-  if (key === 'normal') {
-    return '<div class="card event">' + select + '<p class="ev-hint">Pick an event to preview how waste volumes shift and how the agent would re-plan.</p></div>';
-  }
-  const fx = scenarioEffects();
-  const effects = Object.entries(sc.mult).map(([t, m]) => '<span class="chip ' + (m > 1 ? 'up' : m < 1 ? 'down' : '') + '">' + t + ' ' + pctDelta(m) + '</span>').join('');
-  const n = fx.now.overflow;
-  return '<div class="card event active">' + select + '<div class="ev-body">' +
-    '<div class="ev-row"><span class="ev-label">Simulated event</span><b>' + sc.label + '</b><span class="small">' + sc.note + '</span></div>' +
-    '<div class="ev-row"><span class="ev-label">Predicted effects</span>' + effects + '<span class="small">on waste volume</span></div>' +
-    '<div class="ev-row"><span class="ev-label">What the agent sees</span><span>' + n + ' container' + (n === 1 ? '' : 's') + ' at risk of overflow (' + fx.base.overflow + ' in a normal week) · ' +
-    fx.now.sched + ' schedule change' + (fx.now.sched === 1 ? '' : 's') + ' suggested</span></div></div></div>';
+function eventLine() {
+  if (Model.scenario === 'normal') return '';
+  const sc = SCENARIOS[Model.scenario], fx = scenarioEffects(), n = fx.now.overflow;
+  const effects = Object.entries(sc.mult).map(([t, m]) => t + ' ' + pctDelta(m)).join(' · ');
+  return '<div class="ev-line"><b>' + sc.label + '</b><span>' + effects + '</span>' +
+    '<span>' + n + ' overflow risk' + (n === 1 ? '' : 's') + ' (' + fx.base.overflow + ' normally)</span></div>';
 }
 
-/* heading + event card (+ location select on pages that filter by one location) */
+/* heading + event line (+ location select on pages that filter by one location) */
 function pageTop(title, sub, withLoc) {
   const loc = withLoc
     ? '<div class="toolbar"><label>Location<select id="locSel"><option value="">All locations</option>' +
       LOCATIONS.map(l => '<option value="' + l.id + '"' + (l.id === ui.loc ? ' selected' : '') + '>' + l.name + '</option>').join('') + '</select></label></div>'
     : '';
-  return pageHead(title, sub) + eventCard() + loc;
+  return pageHead(title, sub) + eventLine() + loc;
 }
 
 function chartSvg(c, big) {
@@ -164,12 +157,12 @@ function pkChip(p, long) {
   const fill = sim ? ' · ~' + Math.round(Math.min(sim.fill, 100)) + '% full' : '';
   const qty = p.amount > 1 ? ' ×' + p.amount : '';
   const extra = !long ? '' : p.status === 'cancelled' ? ' · cancelled' : p.status === 'added' ? ' · added' + fill : fill;
-  return '<button class="pk ' + p.status + '" style="--c:' + S.color + ';--t:' + S.text + '" title="' + Model.contLabel(c) + qty + fill + '" data-act="selpk" data-cid="' + p.cid + '" data-date="' + p.date + '">' +
+  return '<button class="pk ' + p.status + '" style="--c:' + S.color + '" title="' + Model.contLabel(c) + qty + fill + '" data-act="selpk" data-cid="' + p.cid + '" data-date="' + p.date + '">' +
     '<span class="loc">' + locOf(c).code + '</span><span class="ty">' + (long ? S.label : STREAM_SHORT[c.stream]) + qty + extra + '</span></button>';
 }
 function ghostChip(g, long) {
   const c = Model.cont(g.cid), S = STREAMS[c.stream];
-  return '<button class="pk ghost" style="--c:' + S.color + ';--t:' + S.text + '" title="AI suggestion: ' + g.rec.title.replace(/"/g, '') + '" data-act="selghost" data-id="' + g.rec.id + '">' +
+  return '<button class="pk ghost" style="--c:' + S.color + '" title="AI suggestion: ' + g.rec.title.replace(/"/g, '') + '" data-act="selghost" data-id="' + g.rec.id + '">' +
     '<span class="ai">AI</span><span class="loc">' + locOf(c).code + '</span><span class="ty">' + (long ? S.label + ' · suggested' : STREAM_SHORT[c.stream]) + '</span></button>';
 }
 function dayItems(date, cs, ghosts) {
@@ -246,18 +239,15 @@ function viewPlanner() {
   const activeRow = active.length
     ? '<div class="active-filters">Showing only:' + active.map(a => '<button class="fchip" data-act="rmfilter" data-kind="' + a[0] + '" data-val="' + a[1] + '" title="Remove filter">' + a[2] + ' ×</button>').join('') + '</div>'
     : '';
-  const legend = '<div class="legend2"><div><span class="lg-title">Location</span>' +
-    LOCATIONS.map(l => '<span class="lg"><span class="loc">' + l.code + '</span>' + l.name + '</span>').join('') + '</div>' +
-    '<div><span class="lg-title">Waste type</span>' + Object.values(STREAMS).map(s => '<span class="lg"><i class="sw" style="background:' + s.color + '"></i>' + s.label + '</span>').join('') +
-    '<span class="lg"><span class="ai-demo">AI</span>hatched = agent suggestion, not scheduled yet</span></div></div>';
-  return pageHead('Planner', 'Your upcoming pickups. Click a pickup for details, or an AI suggestion to review it.') + eventCard() +
+  return pageHead('Planner', 'Your upcoming pickups') + eventLine() +
     '<div class="card cal-card">' +
-    '<div class="cal-toolbar"><button class="btn" data-act="toggleadd">+ Add pickup</button>' +
-    '<div class="month-nav"><button class="nav" data-act="monthprev" aria-label="Previous month">‹</button><button class="nav" data-act="monthnext" aria-label="Next month">›</button>' +
+    '<div class="cal-toolbar"><div class="month-nav"><button class="nav" data-act="monthprev" aria-label="Previous month">‹</button><button class="nav" data-act="monthnext" aria-label="Next month">›</button>' +
     '<b class="month-name">' + monthName + '</b><button class="btn sec sm" data-act="monthtoday">Today</button></div>' +
     '<div class="filter-wrap"><button class="btn sec" data-act="togglefilter">Filter' + (nFilters ? '<span class="count">' + nFilters + '</span>' : '') + ' ▾</button>' + filterPanel() + '</div></div>' +
-    addForm() + activeRow + legend +
-    '<div class="cal">' + head + cells + '</div></div>' + plannerModal();
+    '<div class="add-row"><button class="btn" data-act="toggleadd">+ Add pickup</button></div>' +
+    addForm() + activeRow +
+    '<div class="cal">' + head + cells + '</div>' +
+    '<p class="foot-key">Colour = waste type · tag = location · dashed <span class="ai-demo">AI</span> = suggestion from the agent</p></div>' + plannerModal();
 }
 
 function plannerModal() {

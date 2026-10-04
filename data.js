@@ -4,11 +4,11 @@
 ------------------------------------------------------------------- */
 
 const STREAMS = {
-  residual: { label: 'Residual',          color: '#1F4E5A', text: '#FFFFFF', kgPerL: 0.12, co2PerKg: 0 },
-  paper:    { label: 'Paper & cardboard', color: '#3C78B4', text: '#FFFFFF', kgPerL: 0.08, co2PerKg: 0.9 },
-  glass:    { label: 'Glass',             color: '#8FD3BD', text: '#12343B', kgPerL: 0.35, co2PerKg: 0.3 },
-  organic:  { label: 'Organic',           color: '#7DB84F', text: '#10260A', kgPerL: 0.45, co2PerKg: 0.2 },
-  pmd:      { label: 'Plastic & cans',    color: '#F4A3B8', text: '#4A1B2B', kgPerL: 0.04, co2PerKg: 1.5 }
+  residual: { label: 'Residual',          color: '#5E8A96', kgPerL: 0.12, co2PerKg: 0 },
+  paper:    { label: 'Paper & cardboard', color: '#5B93CF', kgPerL: 0.08, co2PerKg: 0.9 },
+  glass:    { label: 'Glass',             color: '#4FBF9F', kgPerL: 0.35, co2PerKg: 0.3 },
+  organic:  { label: 'Organic',           color: '#A3C94E', kgPerL: 0.45, co2PerKg: 0.2 },
+  pmd:      { label: 'Plastic & cans',    color: '#F27FA0', kgPerL: 0.04, co2PerKg: 1.5 }
 };
 
 // type drives the weekday demand pattern (index 0 = Sunday)

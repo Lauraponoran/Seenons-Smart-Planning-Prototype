@@ -350,9 +350,17 @@ function ghostChip(g, long) {
     '<span class="ai">AI</span><span class="loc">' + locOf(c).code + '</span><span class="ty">' + (long ? S.label + ' · suggested' : STREAM_SHORT[c.stream]) + '</span></button>';
 }
 function dayItems(date, cs, ghosts) {
-  const key = iso(date);
-  const items = key < iso(Model.today) ? [] : Model.pickups(date, 1).filter(p => cs.find(c => c.id === p.cid));
-  return { ghosts: ghosts.filter(g => g.date === key), pickups: items };
+  const key = iso(date), past = key < iso(Model.today), ids = new Set(cs.map(c => c.id));
+  const items = past ? [] : Model.pickups(date, 1).filter(p => ids.has(p.cid));
+  const done = past ? Model.hist.events.filter(e => e.date === key && ids.has(e.cid)) : [];   // recorded history: collected or missed
+  return { ghosts: ghosts.filter(g => g.date === key), pickups: items, past: done };
+}
+/* past pickup: muted when collected (✓), pink when missed (✕) */
+function pastChip(e, long) {
+  const c = Model.cont(e.cid), S = STREAMS[c.stream], ok = e.picked;
+  const detail = !long ? '' : ok ? ' · collected · ' + e.weight + ' kg' : ' · missed' + (e.reason ? ' – ' + e.reason : '');
+  return '<button class="pk past-pk ' + (ok ? 'done' : 'missed') + '" style="--c:' + S.color + '" title="' + Model.contLabel(c) + (ok ? ' · collected' : ' · missed') + '" data-act="selday" data-date="' + e.date + '">' +
+    '<span class="loc">' + locOf(c).code + '</span><span class="ty">' + (ok ? '✓ ' : '✕ ') + (long ? S.label : STREAM_SHORT[c.stream]) + detail + '</span></button>';
 }
 
 /* add-pickup form: location, type of waste, amount, date */
@@ -410,7 +418,7 @@ function viewPlanner() {
   for (let i = 0; i < weeks * 7; i++) {
     const date = addDays(start, i), key = iso(date), past = key < todayKey, other = date.getMonth() !== ui.month.m;
     const di = dayItems(date, cs, ghosts);
-    const all = [...di.ghosts.map(g => ghostChip(g)), ...di.pickups.map(p => pkChip(p))];
+    const all = [...di.ghosts.map(g => ghostChip(g)), ...di.pickups.map(p => pkChip(p)), ...di.past.map(e => pastChip(e))];
     const dotOf = (cid, cls) => '<i class="' + cls + '" style="--c:' + STREAMS[Model.cont(cid).stream].color + '"></i>';
     const dots = [...di.ghosts.map(g => dotOf(g.cid, 'ghost')), ...di.pickups.map(p => dotOf(p.cid, p.status === 'cancelled' ? 'cancelled' : ''))].slice(0, 6).join('');
     const hol = Model.holiday(date);
@@ -419,7 +427,7 @@ function viewPlanner() {
     const more = all.length > maxChips ? '<button class="more" data-act="selday" data-date="' + key + '">+' + (all.length - maxChips) + ' more</button>' : '';
     cells += '<div class="day ' + (key === todayKey ? 'today ' : '') + (past ? 'past ' : '') + (other ? 'other ' : '') + (scen && key >= scen.from && key <= scen.to ? 'sim-period ' : '') + (hol && hol.kind === 'public' ? 'hol-public' : '') + '"><div class="dh"><b>' + date.getDate() + '</b>' +
       (past ? '' : '<button class="plus" title="Add pickup on this day" data-act="setadd" data-date="' + key + '">+</button>') + '</div>' + holLabel + all.slice(0, maxChips).join('') + more +
-      '<div class="dots">' + dots + '</div>' + (past ? '' : '<button class="day-hit" data-act="selday" data-date="' + key + '" aria-label="' + fmtDate(key) + '"></button>') + '</div>';
+      '<div class="dots">' + dots + '</div>' + '<button class="day-hit" data-act="selday" data-date="' + key + '" aria-label="' + fmtDate(key) + '"></button>' + '</div>';
   }
   const monthName = first.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   const nFilters = ui.fLocs.length + ui.fStreams.length;
@@ -491,8 +499,8 @@ function plannerModal() {
     const hol = Model.holiday(parseIso(m.date));
     body = close + '<h3>' + fmtDate(m.date) + '</h3>' +
       (hol ? '<p class="small"><b>' + hol.name + '</b>' + (hol.kind === 'public' ? ' · public holiday' : '') + '</p>' : '') + '<div class="daylist">' +
-      (di.ghosts.map(g => ghostChip(g, true)).join('') + di.pickups.map(p => pkChip(p, true)).join('') || '<p class="small">No pickups planned.</p>') +
-      '</div><button class="btn sec" data-act="setadd" data-date="' + m.date + '">+ Add a pickup on this day</button>';
+      (di.ghosts.map(g => ghostChip(g, true)).join('') + di.pickups.map(p => pkChip(p, true)).join('') + di.past.map(e => pastChip(e, true)).join('') || '<p class="small">' + (m.date < iso(Model.today) ? 'No pickups on this day.' : 'No pickups planned.') + '</p>') +
+      '</div>' + (m.date < iso(Model.today) ? '' : '<button class="btn sec" data-act="setadd" data-date="' + m.date + '">+ Add a pickup on this day</button>');
   }
   return '<div class="modal-bg" data-act="closemodal"><div class="modal" role="dialog">' + body + '</div></div>';
 }

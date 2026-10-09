@@ -155,7 +155,13 @@ svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
 .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
 .wk { text-align: center; font-size: 12px; font-weight: 600; color: var(--muted); padding: 2px 0 4px; }
 .day { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 6px; min-height: 0; aspect-ratio: 1 / 1; overflow: hidden; display: flex; flex-direction: column; gap: 3px; }
-.day.past { background: #F6F8FA; opacity: .65; }
+.day.past { background: #F6F8FA; }
+.day.past .dh b { color: var(--muted); }
+.pk.done { background: color-mix(in srgb, var(--c) 14%, #fff); color: var(--muted); }
+.pk.done:hover { background: color-mix(in srgb, var(--c) 24%, #fff); }
+.pk.missed { background: var(--pink-l); color: var(--pink-d); }
+.pk.missed:hover { background: #F9D5DB; }
+.daylist .pk .ty { white-space: normal; }
 .day.other { background: #F6F8FA; border-style: dashed; }
 .day.other .dh b { color: #B5BFC6; }
 .day.today { border-color: var(--teal); box-shadow: 0 0 0 1px var(--teal); }
@@ -339,4 +345,9 @@ td.heat[data-tt]:hover { outline: 2px solid var(--ink); outline-offset: -2px; }
   .heat-tbl th:first-child, .heat-tbl td:first-child { text-align: left; padding-left: 0; }
   .ln-full { display: none; }
   .ln-code { display: inline; font-weight: 600; }
+}
+
+/* soft fade under the floating pills so they don't sit on top of cut-off content */
+@media (max-width: 860px) {
+  body::after { content: ""; position: fixed; left: 0; right: 0; bottom: 0; height: 96px; background: linear-gradient(to bottom, rgba(237,240,244,0), var(--bg) 80%); pointer-events: none; z-index: 30; }
 }

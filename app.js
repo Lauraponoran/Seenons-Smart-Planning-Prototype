@@ -313,7 +313,7 @@ function viewOverview() {
     '<div class="card"><h3>Weight (kg) over time</h3>' + caption(bd.buckets) + chartWeekStack(bd) + '</div></div>' +
     '<div class="grid cols2"><div class="card"><h3>Source separation rate vs resource saved rate</h3>' + caption(bd.buckets) + chartRates(bd) + '</div>' +
     '<div class="card"><h3>Missed-pickup rate by weekday <span class="tag new">New · service events</span></h3><p class="small cap">Hover a cell for the number of missed pickups.</p>' + heat + '</div></div>' +
-    '<h3 class="sec-h">Smart data <span class="tag new">New</span></h3>' +
+    '<h3 class="sec-h">Smart data <span class="tag new">New · what we recommend collecting</span></h3>' +
     '<div class="grid cols2"><div class="card"><h3>Container fill level: now and 14-day forecast <span class="tag new">New · IoT sensors</span></h3><p class="small cap">Live sensor readings (simulated). The faded bar is the forecast peak before the next pickup; red means over ' + ASSUMPTIONS.alertFill + '%.</p>' + chartFill(containersInView()) + '</div>' +
     '<div class="card"><h3>Recyclables found in residual <span class="tag new">New · composition scan</span></h3><p class="small cap">Share of each residual container that could have been separated, from the last (simulated) scan.</p>' + chartComposition(containersInView()) + '</div></div>' +
     '<h3 class="sec-h">Recommended actions <span class="small">(' + acts.length + ')</span></h3>' +

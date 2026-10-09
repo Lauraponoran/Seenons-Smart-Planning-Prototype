@@ -1,10 +1,11 @@
 /* app.js — UI for the SmartPlan prototype (plain JS, no build step) */
 
+const isMobile = () => window.matchMedia('(max-width: 860px)').matches;
 const ui = {
   tab: 'planner', loc: '', cid: null, modal: null, month: null,
   fLocs: [], fStreams: [], filterOpen: false,           // planner calendar filters (empty = show all)
   add: { open: false, loc: null, stream: null, amount: 1, date: null, msg: '' },
-  scrollAdd: false, noteOpen: false, notifAll: false, notifHidden: false, simOpen: false, from: iso(addDays(Model.today, -(HISTORY_DAYS - 1))), to: iso(Model.today)
+  scrollAdd: false, noteOpen: false, notifAll: false, notifHidden: isMobile(), simOpen: false, from: iso(addDays(Model.today, -(HISTORY_DAYS - 1))), to: iso(Model.today)
 };
 const $ = s => document.querySelector(s);
 const defFrom = () => iso(addDays(Model.today, -(HISTORY_DAYS - 1))), defTo = () => iso(Model.today);
@@ -285,15 +286,15 @@ function viewOverview() {
   const f = ui.from, t = ui.to;
   const k = Model.kpis(ui.loc, f, t), bd = Model.breakdown(ui.loc, f, t);
   const locs = LOCATIONS.filter(l => !ui.loc || l.id === ui.loc);
-  const heat = '<table><tr><th>Location</th>' + [1, 2, 3, 4, 5, 6, 0].map(d => '<th>' + WD[d] + '</th>').join('') + '</tr>' + locs.map(l => {
+  const heat = '<div class="heat-wrap"><table class="heat-tbl"><tr><th>Location</th>' + [1, 2, 3, 4, 5, 6, 0].map(d => '<th>' + WD[d] + '</th>').join('') + '</tr>' + locs.map(l => {
     const ldays = new Set(CONTAINERS.filter(c => c.loc === l.id).flatMap(c => c.days));
-    return '<tr><td>' + l.name + '</td>' + [1, 2, 3, 4, 5, 6, 0].map(d => {
+    return '<tr><td><span class="ln-full">' + l.name + '</span><span class="ln-code">' + l.code + '</span></td>' + [1, 2, 3, 4, 5, 6, 0].map(d => {
       if (!ldays.has(d)) return '<td class="heat" style="color:#b6c7c4">–</td>';
       const m = Model.missRate(l.id, d, f, t), a = Math.min(1, m.rate / 0.3);
       const tt = '<b>' + l.name + '</b><br>' + FULLDAY[d] + 's: ' + (m.n < 5 ? 'not enough pickups yet (' + m.n + ')' : Math.round(m.rate * m.n) + ' of ' + m.n + ' pickups missed (' + pct(m.rate) + ')');
       return '<td class="heat" data-tt="' + escA(tt) + '" style="background:rgba(229,86,109,' + (0.08 + a * 0.6).toFixed(2) + ')">' + pct(m.rate) + '</td>';
     }).join('') + '</tr>';
-  }).join('') + '</table>';
+  }).join('') + '</table></div>';
   const rank = { high: 0, medium: 1, low: 2 };
   const acts = [...viewRecs().filter(r => !r.ops), ...Model.insights(ui.loc, f, t)].sort((a, b) => rank[a.severity] - rank[b.severity]);
   const kpi = (v, l, warn, tt) => '<div class="card kpi ' + (warn ? 'warn' : '') + '"' + (tt ? ' data-tt="' + escA(tt) + '"' : '') + '><div class="v">' + v + '</div><div class="l">' + l + '</div></div>';
@@ -409,12 +410,15 @@ function viewPlanner() {
     const date = addDays(start, i), key = iso(date), past = key < todayKey, other = date.getMonth() !== ui.month.m;
     const di = dayItems(date, cs, ghosts);
     const all = [...di.ghosts.map(g => ghostChip(g)), ...di.pickups.map(p => pkChip(p))];
+    const dotOf = (cid, cls) => '<i class="' + cls + '" style="--c:' + STREAMS[Model.cont(cid).stream].color + '"></i>';
+    const dots = [...di.ghosts.map(g => dotOf(g.cid, 'ghost')), ...di.pickups.map(p => dotOf(p.cid, p.status === 'cancelled' ? 'cancelled' : ''))].slice(0, 6).join('');
     const hol = Model.holiday(date);
     const holLabel = hol ? '<span class="hol ' + hol.kind + '" title="' + hol.name + (hol.kind === 'public' ? ' (public holiday)' : '') + '">' + hol.name + '</span>' : '';
     const maxChips = hol ? 2 : 3;            // the holiday label takes one line of the square cell
     const more = all.length > maxChips ? '<button class="more" data-act="selday" data-date="' + key + '">+' + (all.length - maxChips) + ' more</button>' : '';
     cells += '<div class="day ' + (key === todayKey ? 'today ' : '') + (past ? 'past ' : '') + (other ? 'other ' : '') + (scen && key >= scen.from && key <= scen.to ? 'sim-period ' : '') + (hol && hol.kind === 'public' ? 'hol-public' : '') + '"><div class="dh"><b>' + date.getDate() + '</b>' +
-      (past ? '' : '<button class="plus" title="Add pickup on this day" data-act="setadd" data-date="' + key + '">+</button>') + '</div>' + holLabel + all.slice(0, maxChips).join('') + more + '</div>';
+      (past ? '' : '<button class="plus" title="Add pickup on this day" data-act="setadd" data-date="' + key + '">+</button>') + '</div>' + holLabel + all.slice(0, maxChips).join('') + more +
+      '<div class="dots">' + dots + '</div>' + (past ? '' : '<button class="day-hit" data-act="selday" data-date="' + key + '" aria-label="' + fmtDate(key) + '"></button>') + '</div>';
   }
   const monthName = first.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
   const nFilters = ui.fLocs.length + ui.fStreams.length;
@@ -452,7 +456,7 @@ function notifications() {
   // pull-out tab: the stack slides off to the right edge, the tab (with the count) stays visible
   return '<div class="notifs' + (ui.notifHidden ? ' hidden' : '') + '" aria-live="polite">' +
     '<button class="notif-tab" data-act="notiftoggle" aria-expanded="' + !ui.notifHidden + '" aria-label="' + (ui.notifHidden ? 'Show' : 'Hide') + ' AI suggestions" title="' + (ui.notifHidden ? 'Show' : 'Hide') + ' AI suggestions">' +
-    '<span class="nt-ch">' + (ui.notifHidden ? '‹' : '›') + '</span><span class="notif-n">' + recs.length + '</span></button>' +
+    '<span class="nt-lbl">Suggestions</span><span class="nt-ch">' + (ui.notifHidden ? '‹' : '›') + '</span><span class="notif-n">' + recs.length + '</span></button>' +
     '<div class="notif-stack">' + toasts + (foot ? '<div class="notif-foot">' + foot + '</div>' : '') + '</div></div>';
 }
 
@@ -539,10 +543,10 @@ function init() {
     else if (act === 'selday') ui.modal = { kind: 'day', date: d.date };
     else if (act === 'toggleadd') { ui.add.open = !ui.add.open; ui.add.msg = ''; ui.filterOpen = false; ui.scrollAdd = ui.add.open; }
     else if (act === 'setadd') { ui.add.open = true; ui.add.date = d.date; ui.add.msg = ''; ui.modal = null; ui.scrollAdd = true; }
-    else if (act === 'notiftoggle') ui.notifHidden = !ui.notifHidden;
+    else if (act === 'notiftoggle') { ui.notifHidden = !ui.notifHidden; if (!ui.notifHidden && isMobile()) ui.simOpen = false; }
     else if (act === 'cleardates') { const r = baseRange(); ui.from = r.from; ui.to = r.to; }
-    else if (act === 'simtoggle') ui.simOpen = !ui.simOpen;
-    else if (act === 'notetoggle') ui.noteOpen = !ui.noteOpen;
+    else if (act === 'simtoggle') { ui.simOpen = !ui.simOpen; if (ui.simOpen && isMobile()) { ui.notifHidden = true; ui.noteOpen = false; } }
+    else if (act === 'notetoggle') { ui.noteOpen = !ui.noteOpen; if (ui.noteOpen && isMobile()) ui.simOpen = false; }
     else if (act === 'notifmore') ui.notifAll = !ui.notifAll;
     else if (act === 'scenario') setScenario(d.val);
     else if (act === 'togglefilter') ui.filterOpen = !ui.filterOpen;

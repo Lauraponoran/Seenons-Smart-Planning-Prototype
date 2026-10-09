@@ -215,13 +215,14 @@ function chartFill(cs) {
 function chartComposition(cs) {
   const rs = cs.filter(c => c.stream === 'residual' && c.audit != null);
   if (!rs.length) return '<p class="small">No scanned residual containers in this selection.</p>';
-  const W = 520, rowH = 36, L = 150, R = 14, H = rs.length * rowH + 26, x = v => L + v / 100 * (W - L - R);
+  const W = 520, rowH = 36, L = 118, R = 14, H = rs.length * rowH + 26, x = v => L + v / 100 * (W - L - R);
   let s = '';
   [0, 25, 50, 75, 100].forEach(v => { s += '<line x1="' + x(v) + '" x2="' + x(v) + '" y1="0" y2="' + (H - 22) + '" stroke="' + COL.grid + '"/><text x="' + x(v) + '" y="' + (H - 6) + '" text-anchor="middle">' + v + '%</text>'; });
   rs.forEach((c, i) => {
     const y = i * rowH + 6, name = locOf(c).name;
     const tt = '<b>' + name + '</b><br>Recyclable material in residual: <b>' + c.audit + '%</b><br>Paper, cardboard and packaging that could be separated<br>Everything else: ' + (100 - c.audit) + '%';
-    s += '<text x="' + (L - 8) + '" y="' + (y + 16) + '" text-anchor="end">' + name + '</text>' +
+    const parts = name.split(' – ');      // "Amsterdam – Centrum Store" -> two lines
+    s += '<text text-anchor="end"><tspan x="' + (L - 8) + '" y="' + (y + 10) + '">' + parts[0] + '</tspan>' + (parts[1] ? '<tspan x="' + (L - 8) + '" y="' + (y + 23) + '">' + parts[1] + '</tspan>' : '') + '</text>' +
       '<rect class="seg" data-tt="' + escA(tt) + '" x="' + x(0) + '" y="' + y + '" width="' + (x(c.audit) - x(0)) + '" height="22" fill="' + COL.teal + '"/>' +
       '<rect class="seg" data-tt="' + escA(tt) + '" x="' + x(c.audit) + '" y="' + y + '" width="' + (x(100) - x(c.audit)) + '" height="22" fill="#C9D6D9"/>';
   });
@@ -435,7 +436,7 @@ function viewPlanner() {
     '<div class="filter-wrap"><button class="btn sec" data-act="togglefilter">Filter' + (nFilters ? '<span class="count">' + nFilters + '</span>' : '') + ' ▾</button>' + filterPanel() + '</div>' +
     '<span class="cal-sep"></span><button class="btn" data-act="toggleadd">+ Add pickup</button></div></div>' +
     addForm() + activeRow + scenarioBanner(true) +
-    '<div class="cal">' + head + cells + '</div>' +
+    '<div class="cal" style="--weeks:' + weeks + '">' + head + cells + '</div>' +
     '</div>' + notifications() + plannerModal();
 }
 
@@ -499,6 +500,7 @@ function plannerModal() {
 /* ---------------- render + events ---------------- */
 function render() {
   tipBox.style.display = 'none'; tipBox._el = null;
+  document.body.dataset.tab = ui.tab;
   $('#nav').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === ui.tab));
   $('#view').innerHTML = { report: viewOverview, planner: viewPlanner }[ui.tab]() + simulator() + (ui.tab === 'planner' ? '' : notebook());
   if (ui.scrollAdd) {

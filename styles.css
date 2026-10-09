@@ -283,6 +283,7 @@ td.heat[data-tt]:hover { outline: 2px solid var(--ink); outline-offset: -2px; }
 
 @media (max-width: 860px) {
   main { padding-bottom: 96px; }                       /* room for the bottom pills */
+  nav { margin-left: auto; }
   /* floating panels live at the bottom (thumb zone, clear of the top bar): tasks / suggestions left, simulator right */
   .notifs, .notifs.hidden { top: auto; right: auto; left: 12px; bottom: 12px; transform: none; flex-direction: column-reverse; align-items: flex-start; gap: 8px; }
   .notif-stack, .notifs.hidden .notif-stack { width: calc(100vw - 24px); max-height: 45vh; padding: 0; }
@@ -305,8 +306,11 @@ td.heat[data-tt]:hover { outline: 2px solid var(--ink); outline-offset: -2px; }
   .card, .report-panel .card { padding: 14px; }
   .report-panel { padding: 12px; }
 
-  /* planner: Google-Calendar-style month grid — edge to edge, no gaps, a day number plus coloured dots; tap a day for its list */
-  .cal-card { margin: 0 -12px; padding: 12px 0 0; border-radius: 0; border-left: 0; border-right: 0; }
+  /* planner: Google-Calendar-style month grid — fills the screen height, rounded day cells, coloured chips; tap a day for its list */
+  body[data-tab="planner"] main { padding-bottom: 64px; display: flex; flex-direction: column; }
+  body[data-tab="planner"] #view { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  body[data-tab="planner"] .page-head { display: none; }
+  .cal-card { flex: 1; display: flex; flex-direction: column; margin: 0 -12px; padding: 0; background: transparent; border: 0; border-radius: 0; }
   .cal-card > .addform, .cal-card > .sim-banner, .cal-card > .active-filters { margin-left: 12px; margin-right: 12px; }
   .cal-toolbar { position: relative; padding: 0 12px; }
   .month-name { min-width: 0; }
@@ -317,18 +321,17 @@ td.heat[data-tt]:hover { outline: 2px solid var(--ink); outline-offset: -2px; }
   .filter-wrap > .btn { width: 100%; }
   .popover { left: 12px; right: 12px; width: auto; min-width: 0; }
 
-  .cal { gap: 0; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
-  .wk { padding: 6px 0; font-size: 11px; }
-  .day { border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); border-radius: 0; min-height: 56px; padding: 6px 0 4px; align-items: center; gap: 5px; }
-  .day.other { border-style: solid; }
+  .cal { flex: 1; gap: 3px; padding: 0 4px; grid-template-rows: auto repeat(var(--weeks, 5), minmax(84px, 1fr)); }
+  .wk { padding: 2px 0 4px; font-size: 12px; }
+  .day { border: 0; border-radius: 8px; min-height: 0; padding: 5px 2px 3px; gap: 2px; }
+  .day.other { background: #F4F6F8; }
   .day.today { box-shadow: none; }
   .dh { justify-content: center; width: 100%; }
-  .day .pk, .day .more, .day .hol, .day .plus { display: none; }
-  .dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; padding: 0 4px; }
-  .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
-  .dots i.ghost { background: #fff; box-shadow: inset 0 0 0 1.5px var(--c); }
-  .dots i.cancelled { opacity: .35; }
-  .day-hit { display: block; position: absolute; inset: 0; width: 100%; border: 0; padding: 0; background: transparent; cursor: pointer; }
+  .day .plus, .dots { display: none; }
+  .day .pk { font-size: 9.5px; padding: 1px 4px; border-radius: 4px; }
+  .day .more { font-size: 10px; text-align: center; text-decoration: none; padding: 0; }
+  .day .hol { font-size: 9px; text-align: center; }
+  .day-hit { display: block; position: absolute; inset: 0; width: 100%; border: 0; border-radius: 8px; padding: 0; background: transparent; cursor: pointer; }
   .day-hit:active { background: rgba(77,165,138,.14); }
 
   /* report: weekday heatmap fits its card (location code instead of the long name) */

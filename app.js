@@ -313,7 +313,7 @@ function viewOverview() {
     '<div class="grid cols2"><div class="card"><h3>Weight (kg) by stream and location</h3><p class="small cap">Hover a bar for amounts.</p>' + chartStreamLoc(bd, locs) + '</div>' +
     '<div class="card"><h3>Weight (kg) over time</h3>' + caption(bd.buckets) + chartWeekStack(bd) + '</div></div>' +
     '<div class="grid cols2"><div class="card"><h3>Source separation rate vs resource saved rate</h3>' + caption(bd.buckets) + chartRates(bd) + '</div>' +
-    '<div class="card"><h3>Missed-pickup rate by weekday <span class="tag new">New · service events</span></h3><p class="small cap">Hover a cell for the number of missed pickups.</p>' + heat + '</div></div>' +
+    '<div class="card"><h3>Missed-pickup rate by weekday <span class="tag new">New</span></h3><p class="small cap">Hover a cell for the number of missed pickups.</p>' + heat + '</div></div>' +
     '<h3 class="sec-h">Smart data <span class="tag new">New - Requires Additional Sensors</span></h3>' +
     '<div class="grid cols2"><div class="card"><h3>Container fill level: now and 14-day forecast <span class="tag new">Needs IoT Sensors</span></h3><p class="small cap">Live sensor readings (simulated). The faded bar is the forecast peak before the next pickup; red means over ' + ASSUMPTIONS.alertFill + '%.</p>' + chartFill(containersInView()) + '</div>' +
     '<div class="card"><h3>Recyclables found in residual <span class="tag new">Needs Composition Scan</span></h3><p class="small cap">Share of each residual container that could have been separated, from the last (simulated) scan.</p>' + chartComposition(containersInView()) + '</div></div>' +
@@ -527,6 +527,7 @@ function plannerModal() {
 function render() {
   tipBox.style.display = 'none'; tipBox._el = null;
   document.body.dataset.tab = ui.tab;
+  document.body.classList.toggle('notifs-open', ui.tab === 'planner' && !ui.notifHidden);   // phones: suggestions panel is open
   $('#nav').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === ui.tab));
   $('#view').innerHTML = { report: viewOverview, planner: viewPlanner }[ui.tab]() + simulator() + (ui.tab === 'planner' ? '' : notebook());
   placeAddPop();

@@ -316,6 +316,10 @@ td.heat[data-tt]:hover { outline: 2px solid var(--ink); outline-offset: -2px; }
   .notifs .notif-tab, .notifs.hidden .notif-tab { width: auto; height: 40px; margin: 0; padding: 0 10px 0 16px; gap: 8px; border: 0; border-radius: 999px; background: var(--teal); color: #fff; font-size: 13px; font-weight: 500; box-shadow: 0 8px 22px rgba(43,58,66,.25); }
   .notifs .notif-tab:hover { background: var(--teal-d); }
   .notifs:not(.hidden) .notif-tab { background: var(--teal-d); }
+  /* the suggestions pill/panel must always be tappable: keep it above the simulator and chat launchers, and
+     while it is open hide those two (they would sit on top of the panel's buttons) */
+  .notifs, .notifs.hidden { z-index: 40; }
+  body.notifs-open .sim, body.notifs-open .chat { display: none; }
   .notifs .nt-lbl { display: inline; }
   .notifs .nt-ch { display: none; }
   .notifs .notif-n { display: inline-block; }

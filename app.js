@@ -317,9 +317,9 @@ function viewOverview() {
     '<h3 class="sec-h">Smart data <span class="tag new">New - Requires Additional Sensors</span></h3>' +
     '<div class="grid cols2"><div class="card"><h3>Container fill level: now and 14-day forecast <span class="tag new">Needs IoT Sensors</span></h3><p class="small cap">Live sensor readings (simulated). The faded bar is the forecast peak before the next pickup; red means over ' + ASSUMPTIONS.alertFill + '%.</p>' + chartFill(containersInView()) + '</div>' +
     '<div class="card"><h3>Recyclables found in residual <span class="tag new">Needs Composition Scan</span></h3><p class="small cap">Share of each residual container that could have been separated, from the last (simulated) scan.</p>' + chartComposition(containersInView()) + '</div></div>' +
+    Assistant.reportSection() +
     '<h3 class="sec-h">Recommended actions <span class="small">(' + acts.length + ')</span></h3>' +
-    (acts.map(taskCard).join('') || '<p class="sub">No open recommendations for this selection.</p>') +
-    Assistant.reportSection() + '</div>';
+    (acts.map(taskCard).join('') || '<p class="sub">No open recommendations for this selection.</p>') + '</div>';
 }
 
 /* ----- planner ----- */
@@ -527,6 +527,7 @@ function plannerModal() {
 function render() {
   tipBox.style.display = 'none'; tipBox._el = null;
   document.body.dataset.tab = ui.tab;
+  document.body.classList.toggle('sim-open', !!ui.simOpen);   // phones: hides the suggestions pill while the simulator panel is open
   document.body.classList.toggle('notifs-open', ui.tab === 'planner' && !ui.notifHidden);   // phones: suggestions panel is open
   $('#nav').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === ui.tab));
   $('#view').innerHTML = { report: viewOverview, planner: viewPlanner }[ui.tab]() + simulator() + (ui.tab === 'planner' ? '' : notebook());

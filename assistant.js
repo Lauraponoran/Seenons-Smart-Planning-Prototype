@@ -655,6 +655,7 @@ const Assistant = (() => {
   function draw() {
     const el = $('#chat'); if (!el) return;
     el.classList.toggle('open', st.open); el.classList.toggle('max', st.max);
+    document.body.classList.toggle('chat-open', st.open);   // lets the stylesheet tuck the suggestions pill away while the chat is open
     const fab = el.querySelector('.chat-fab'); fab.setAttribute('aria-expanded', String(st.open)); fab.setAttribute('aria-label', st.open ? 'Close the assistant' : 'Open the assistant');
     el.querySelector('.chat-panel').hidden = !st.open;
     const mb = el.querySelector('.chat-maxb'); mb.innerHTML = st.max ? ICON.min : ICON.max; mb.setAttribute('aria-label', st.max ? 'Make smaller' : 'Maximize'); mb.title = st.max ? 'Make smaller' : 'Maximize';

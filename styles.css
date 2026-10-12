@@ -320,6 +320,8 @@ td.heat[data-tt]:hover { outline: 2px solid var(--ink); outline-offset: -2px; }
      while it is open hide those two (they would sit on top of the panel's buttons) */
   .notifs, .notifs.hidden { z-index: 40; }
   body.notifs-open .sim, body.notifs-open .chat { display: none; }
+  /* ...and the other way round: while the simulator panel or the chat is open, the suggestions pill steps aside */
+  body.sim-open .notifs, body.chat-open .notifs { display: none; }
   .notifs .nt-lbl { display: inline; }
   .notifs .nt-ch { display: none; }
   .notifs .notif-n { display: inline-block; }

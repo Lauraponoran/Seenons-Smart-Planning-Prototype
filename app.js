@@ -4,8 +4,8 @@ const isMobile = () => window.matchMedia('(max-width: 860px)').matches;
 const ui = {
   tab: 'planner', loc: '', cid: null, modal: null, month: null,
   fLocs: [], fStreams: [], filterOpen: false,           // planner calendar filters (empty = show all)
-  add: { open: false, loc: null, stream: null, amount: 1, date: null, msg: '' },
-  scrollAdd: false, noteOpen: false, notifAll: false, notifHidden: isMobile(), simOpen: false, from: iso(addDays(Model.today, -(HISTORY_DAYS - 1))), to: iso(Model.today)
+  add: { open: false, loc: null, stream: null, amount: 1, date: null, msg: '', anchor: null },
+  noteOpen: false, notifAll: false, notifHidden: isMobile(), simOpen: false, from: iso(addDays(Model.today, -(HISTORY_DAYS - 1))), to: iso(Model.today)
 };
 const $ = s => document.querySelector(s);
 const defFrom = () => iso(addDays(Model.today, -(HISTORY_DAYS - 1))), defTo = () => iso(Model.today);
@@ -33,7 +33,8 @@ const COL = { navy: '#1F4E5A', teal: '#4BA58A', pink: '#EA5B7D', alert: '#D2436A
 function containersInView() { return CONTAINERS.filter(c => !ui.loc || c.loc === ui.loc); }
 function allRecs() { return Model.recommendations(''); }
 function viewRecs() { return Model.recommendations(ui.loc); }
-function resetAdd() { ui.add = { open: false, loc: null, stream: null, amount: 1, date: null, msg: '' }; }
+function resetAdd() { ui.add = { open: false, loc: null, stream: null, amount: 1, date: null, msg: '', anchor: null }; }
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
 
 /* ---------------- shared pieces ---------------- */
 function impactChips(r) {
@@ -134,14 +135,14 @@ function chartSvg(c, big) {
   const marks = fc.filter(p => p.pickup).map(p => '<circle cx="' + x(p.d) + '" cy="' + y(p.fill) + '" r="5" fill="' + (p.status === 'added' ? COL.pink : COL.navy) + '"/>').join('');
   const overs = fc.filter(p => p.fill >= ASSUMPTIONS.alertFill).map(p => '<circle cx="' + x(p.d) + '" cy="' + y(p.fill) + '" r="6" fill="none" stroke="' + COL.alert + '" stroke-width="2"/>').join('');
   let xl = '';
-  for (let i = -14; i <= 14; i += 7) xl += '<text x="' + (x(i) - 14) + '" y="' + (H - 6) + '">' + (i === 0 ? 'today' : fmtDate(addDays(Model.today, i)).split(' ').slice(1).join(' ')) + '</text>';
+  for (let i = -14; i <= 14; i += 7) xl += '<text x="' + (x(i) - 14) + '" y="' + (H - 6) + '">' + (i === 0 ? 'Today' : fmtDate(addDays(Model.today, i)).split(' ').slice(1).join(' ')) + '</text>';
   return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Fill level history and forecast">' + grid +
     '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(ASSUMPTIONS.alertFill) + '" y2="' + y(ASSUMPTIONS.alertFill) + '" stroke="' + COL.alert + '" stroke-dasharray="5 4"/>' +
-    '<text x="' + (W - 130) + '" y="' + (y(ASSUMPTIONS.alertFill) - 4) + '" style="fill:' + COL.alert + '">overflow risk ' + ASSUMPTIONS.alertFill + '%</text>' +
+    '<text x="' + (W - 130) + '" y="' + (y(ASSUMPTIONS.alertFill) - 4) + '" style="fill:' + COL.alert + '">Overflow risk ' + ASSUMPTIONS.alertFill + '%</text>' +
     '<line x1="' + x(0) + '" x2="' + x(0) + '" y1="' + T + '" y2="' + (H - B) + '" stroke="#B9C8C5"/>' +
     '<path d="' + hp + '" fill="none" stroke="' + COL.grey + '" stroke-width="2"/>' +
     '<path d="' + fp + '" fill="none" stroke="' + COL.teal + '" stroke-width="2.5" stroke-dasharray="6 4"/>' + marks + overs + xl + '</svg>' +
-    '<div class="legend"><span><i style="background:' + COL.grey + '"></i>Sensor history</span><span><i style="background:' + COL.teal + '"></i>Forecast</span><span>● pickups</span></div>';
+    '<div class="legend"><span><i style="background:' + COL.grey + '"></i>Sensor history</span><span><i style="background:' + COL.teal + '"></i>Forecast</span><span>● Pickups</span></div>';
 }
 
 /* ---------------- Report: charts modelled on the Seenons waste-saver dashboard ---------------- */
@@ -262,7 +263,7 @@ function chartRates(bd) {
 
 /* recommended action (composition tasks) and the list of tasks created from them */
 function taskCard(r) {
-  return '<div class="card rec"><div class="body"><span class="badge ' + r.severity + '">' + r.severity + '</span> <span class="badge">' + typeLabel[r.type] + '</span>' +
+  return '<div class="card rec"><div class="body"><span class="badge ' + r.severity + '">' + cap(r.severity) + '</span> <span class="badge">' + typeLabel[r.type] + '</span>' +
     '<h4>' + r.title + '</h4><p>' + r.reason + '</p><div>' + impactChips(r) + '</div></div>' +
     '<div class="acts"><button class="btn" data-act="apply" data-id="' + r.id + '">Create task</button><button class="btn sec" data-act="dismiss" data-id="' + r.id + '">Dismiss</button></div></div>';
 }
@@ -301,13 +302,14 @@ function viewOverview() {
   const kpi = (v, l, warn, tt) => '<div class="card kpi ' + (warn ? 'warn' : '') + '"' + (tt ? ' data-tt="' + escA(tt) + '"' : '') + '><div class="v">' + v + '</div><div class="l">' + l + '</div></div>';
   return pageHead('Report', 'What Seenons clients see today, plus recommended next steps.') +
     '<div class="report-panel">' + toolbar(true) +
-    scenarioBanner() + '<h3 class="sec-h">Summary Statistics</h3>' +
+    scenarioBanner() + '<h3 class="sec-h">Summary statistics</h3>' +
     '<div class="grid kpis">' + kpi(k.orders, 'Orders', false, 'Total orders picked up in this period.') + kpi(kg(k.weight), 'Weight', false, 'Total weight collected in this period.') +
     kpi(pct(k.separation), 'Separation rate', false, 'Source separation rate: share of the weight that was not residual.') +
     kpi(pct(k.resource), 'Resource saved', false, 'Resource saved rate: share of the weight that was recycled or recovered (demo factors).') +
     kpi(kg(k.co2), 'CO₂ saved', false, 'CO₂ saved by recycling, using demo factors per stream.') +
     kpi(pct(k.missRate), 'Missed pickups', k.missRate > 0.06, k.missed + ' of ' + k.pickups + ' scheduled pickups were missed in this period.') +
     kpi(k.full, 'Full at pickup', k.full > 0, 'Pickups where the container was already at least ' + ASSUMPTIONS.alertFill + '% full, so it was at risk of overflowing.') + '</div>' +
+    Assistant.reportSection() +
     '<h3 class="sec-h">Waste details <span class="tag">Seenons today</span></h3>' +
     '<div class="grid cols2"><div class="card"><h3>Weight (kg) by stream and location</h3><p class="small cap">Hover a bar for amounts.</p>' + chartStreamLoc(bd, locs) + '</div>' +
     '<div class="card"><h3>Weight (kg) over time</h3>' + caption(bd.buckets) + chartWeekStack(bd) + '</div></div>' +
@@ -323,6 +325,9 @@ function viewOverview() {
 /* ----- planner ----- */
 function mondayOf(d) { return addDays(d, -((d.getDay() + 6) % 7)); }
 const STREAM_SHORT = { residual: 'Residual', paper: 'Paper', glass: 'Glass', organic: 'Organic', pmd: 'Plastic' };
+const STREAM_ABBR = { residual: 'Res', paper: 'Pap', glass: 'Gla', organic: 'Org', pmd: 'Pla' };
+/* waste type on a chip: the full word, or (on phones, where the location pill needs the room) a 3-letter form */
+const tyShort = c => '<span class="t-full">' + STREAM_SHORT[c.stream] + '</span><span class="t-abbr">' + STREAM_ABBR[c.stream] + '</span>';
 const locOf = c => Model.loc(c.loc);
 
 function plannerContainers() {
@@ -340,14 +345,14 @@ function pkChip(p, long) {
   const sim = Model.simulate(c).find(x => x.date === p.date);
   const fill = sim ? ' · ~' + Math.round(Math.min(sim.fill, 100)) + '% full' : '';
   const qty = p.amount > 1 ? ' ×' + p.amount : '';
-  const extra = !long ? '' : p.status === 'cancelled' ? ' · cancelled' : p.status === 'added' ? ' · added' + fill : fill;
+  const extra = !long ? '' : p.status === 'cancelled' ? ' · Cancelled' : p.status === 'added' ? ' · Added' + fill : fill;
   return '<button class="pk ' + p.status + '" style="--c:' + S.color + '" title="' + Model.contLabel(c) + qty + fill + '" data-act="selpk" data-cid="' + p.cid + '" data-date="' + p.date + '">' +
-    '<span class="loc">' + locOf(c).code + '</span><span class="ty">' + (long ? S.label : STREAM_SHORT[c.stream]) + qty + extra + '</span></button>';
+    '<span class="loc">' + locOf(c).code + '</span><span class="ty">' + (long ? S.label : tyShort(c)) + qty + extra + '</span></button>';
 }
 function ghostChip(g, long) {
   const c = Model.cont(g.cid), S = STREAMS[c.stream];
   return '<button class="pk ghost" style="--c:' + S.color + '" title="AI suggestion: ' + g.rec.title.replace(/"/g, '') + '" data-act="selghost" data-id="' + g.rec.id + '">' +
-    '<span class="ai">AI</span><span class="loc">' + locOf(c).code + '</span><span class="ty">' + (long ? S.label + ' · suggested' : STREAM_SHORT[c.stream]) + '</span></button>';
+    '<span class="ai">AI</span><span class="loc">' + locOf(c).code + '</span><span class="ty">' + (long ? S.label + ' · Suggested' : tyShort(c)) + '</span></button>';
 }
 function dayItems(date, cs, ghosts) {
   const key = iso(date), past = key < iso(Model.today), ids = new Set(cs.map(c => c.id));
@@ -358,9 +363,9 @@ function dayItems(date, cs, ghosts) {
 /* past pickup: muted when collected (✓), pink when missed (✕) */
 function pastChip(e, long) {
   const c = Model.cont(e.cid), S = STREAMS[c.stream], ok = e.picked;
-  const detail = !long ? '' : ok ? ' · collected · ' + e.weight + ' kg' : ' · missed' + (e.reason ? ' – ' + e.reason : '');
-  return '<button class="pk past-pk ' + (ok ? 'done' : 'missed') + '" style="--c:' + S.color + '" title="' + Model.contLabel(c) + (ok ? ' · collected' : ' · missed') + '" data-act="selday" data-date="' + e.date + '">' +
-    '<span class="loc">' + locOf(c).code + '</span><span class="ty">' + (ok ? '✓ ' : '✕ ') + (long ? S.label : STREAM_SHORT[c.stream]) + detail + '</span></button>';
+  const detail = !long ? '' : ok ? ' · Collected · ' + e.weight + ' kg' : ' · Missed' + (e.reason ? ' – ' + e.reason : '');
+  return '<button class="pk past-pk ' + (ok ? 'done' : 'missed') + '" style="--c:' + S.color + '" title="' + Model.contLabel(c) + (ok ? ' · Collected' : ' · Missed') + '" data-act="selday" data-date="' + e.date + '">' +
+    '<span class="loc">' + locOf(c).code + '</span><span class="ty">' + (ok ? '✓ ' : '✕ ') + (long ? S.label : tyShort(c)) + detail + '</span></button>';
 }
 
 /* add-pickup form: location, type of waste, amount, date */
@@ -376,20 +381,33 @@ function addState() {
 function addEstimate() {
   const { a, cont } = addState();
   const cost = a.amount * ASSUMPTIONS.pickupCost;   // plain amount × price per pickup; no late-change fee is modelled
-  return a.amount + ' × ' + cont.cap + ' L ' + STREAMS[cont.stream].label.toLowerCase() + ' at ' + locOf(cont).name + ', ' + fmtDate(a.date) + ' · est. €' + cost;
+  return 'Estimate: ' + a.amount + ' × ' + cont.cap + ' L ' + STREAMS[cont.stream].label.toLowerCase() + ' at ' + locOf(cont).name + ', ' + fmtDate(a.date) + ' · €' + cost;
 }
-function addForm() {
+function addPopup() {
   if (!ui.add.open) return '';
   const { a, avail } = addState();
   const locOpts = LOCATIONS.map(l => '<option value="' + l.id + '"' + (l.id === a.loc ? ' selected' : '') + '>' + l.name + '</option>').join('');
   const stOpts = avail.map(c => '<option value="' + c.stream + '"' + (c.stream === a.stream ? ' selected' : '') + '>' + STREAMS[c.stream].label + ' (' + c.cap + ' L)</option>').join('');
-  return '<div class="addform"><div class="af-fields">' +
-    '<label class="wide"><span>Location</span><select id="addLoc">' + locOpts + '</select></label>' +
+  // a popup over the chosen day (or centred when opened from the "+ Add pickup" button); a dim backdrop closes it
+  return '<div class="addpop-bg" data-act="closeadd"></div><div class="addpop' + (ui.add.anchor ? ' anch' : '') + '" role="dialog" aria-label="Add pickup">' +
+    '<div class="ap-head"><b>Add pickup</b><button class="ap-x" data-act="closeadd" aria-label="Close">×</button></div>' +
+    '<div class="af-fields">' +
+    '<label><span>Location</span><select id="addLoc">' + locOpts + '</select></label>' +
     '<label><span>Type of waste</span><select id="addStream">' + stOpts + '</select></label>' +
-    '<label class="narrow"><span>Amount <small>(containers)</small></span><input type="number" id="addAmount" min="1" max="10" value="' + a.amount + '"></label>' +
-    '<label><span>Date</span><input type="date" id="addDate" min="' + iso(Model.today) + '" value="' + a.date + '"></label>' +
-    '<div class="af-actions"><button class="btn" data-act="addpk">Add</button><button class="btn sec" data-act="toggleadd">Cancel</button></div></div>' +
-    '<p class="small af-est" id="addEst">' + addEstimate() + '</p>' + (a.msg ? '<p class="af-msg">' + a.msg + '</p>' : '') + '</div>';
+    '<div class="af-row"><label><span>Amount <small>(containers)</small></span><input type="number" id="addAmount" min="1" max="10" value="' + a.amount + '"></label>' +
+    '<label><span>Date</span><input type="date" id="addDate" min="' + iso(Model.today) + '" value="' + a.date + '"></label></div></div>' +
+    '<p class="small af-est" id="addEst">' + addEstimate() + '</p>' + (a.msg ? '<p class="af-msg" role="alert">' + a.msg + '</p>' : '') +
+    '<div class="af-actions"><button class="btn" data-act="addpk">Add</button><button class="btn sec" data-act="closeadd">Cancel</button></div></div>';
+}
+/* put the popup over the day it was opened from (desktop / tablet); on phones CSS centres it */
+function placeAddPop() {
+  const pop = document.querySelector('.addpop.anch'); if (!pop) return;
+  if (window.matchMedia('(max-width: 600px)').matches) { pop.style.left = pop.style.top = ''; return; }
+  const cell = document.querySelector('.day[data-date="' + ui.add.anchor + '"]'); if (!cell) return;
+  const r = cell.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight;
+  let x = r.left + r.width / 2 - w / 2, y = r.top + 6;
+  x = Math.max(8, Math.min(x, innerWidth - w - 8)); y = Math.max(8, Math.min(y, innerHeight - h - 8));
+  pop.style.left = x + 'px'; pop.style.top = y + 'px';
 }
 
 /* filter menu: location and waste type (multi-select) */
@@ -425,7 +443,7 @@ function viewPlanner() {
     const holLabel = hol ? '<span class="hol ' + hol.kind + '" title="' + hol.name + (hol.kind === 'public' ? ' (public holiday)' : '') + '">' + hol.name + '</span>' : '';
     const maxChips = hol ? 2 : 3;            // the holiday label takes one line of the square cell
     const more = all.length > maxChips ? '<button class="more" data-act="selday" data-date="' + key + '">+' + (all.length - maxChips) + ' more</button>' : '';
-    cells += '<div class="day ' + (key === todayKey ? 'today ' : '') + (past ? 'past ' : '') + (other ? 'other ' : '') + (scen && key >= scen.from && key <= scen.to ? 'sim-period ' : '') + (hol && hol.kind === 'public' ? 'hol-public' : '') + '"><div class="dh"><b>' + date.getDate() + '</b>' +
+    cells += '<div data-date="' + key + '" class="day ' + (ui.add.open && ui.add.anchor === key ? 'adding ' : '') + (key === todayKey ? 'today ' : '') + (past ? 'past ' : '') + (other ? 'other ' : '') + (scen && key >= scen.from && key <= scen.to ? 'sim-period ' : '') + (hol && hol.kind === 'public' ? 'hol-public' : '') + '"><div class="dh"><b>' + date.getDate() + '</b>' +
       (past ? '' : '<button class="plus" title="Add pickup on this day" data-act="setadd" data-date="' + key + '">+</button>') + '</div>' + holLabel + all.slice(0, maxChips).join('') + more +
       '<div class="dots">' + dots + '</div>' + '<button class="day-hit" data-act="selday" data-date="' + key + '" aria-label="' + fmtDate(key) + '"></button>' + '</div>';
   }
@@ -443,9 +461,9 @@ function viewPlanner() {
     '<div class="cal-actions"><button class="btn blue" data-act="monthtoday">Today</button>' +
     '<div class="filter-wrap"><button class="btn sec" data-act="togglefilter">Filter' + (nFilters ? '<span class="count">' + nFilters + '</span>' : '') + ' ▾</button>' + filterPanel() + '</div>' +
     '<span class="cal-sep"></span><button class="btn" data-act="toggleadd">+ Add pickup</button></div></div>' +
-    addForm() + activeRow + scenarioBanner(true) +
+    activeRow + scenarioBanner(true) +
     '<div class="cal" style="--weeks:' + weeks + '">' + head + cells + '</div>' +
-    '</div>' + notifications() + plannerModal();
+    '</div>' + notifications() + plannerModal() + addPopup();
 }
 
 /* agent suggestions as small corner notifications on the planner (top 3; the rest behind "+N more") */
@@ -477,7 +495,7 @@ function plannerModal() {
   if (m.kind === 'ghost') {
     const r = allRecs().find(x => x.id === m.id);
     if (!r) return '';
-    body = close + '<span class="ai-demo">AI</span> <span class="badge ' + r.severity + '">' + r.severity + '</span> <span class="badge">' + typeLabel[r.type] + '</span>' +
+    body = close + '<span class="ai-demo">AI</span> <span class="badge ' + r.severity + '">' + cap(r.severity) + '</span> <span class="badge">' + typeLabel[r.type] + '</span>' +
       '<h3 style="margin-top:8px">' + r.title + '</h3><p>' + r.reason + '</p><div>' + impactChips(r) + '</div><div style="margin-top:10px">' + chartSvg(Model.cont(r.cid), false) + '</div>' +
       '<div class="acts" style="margin-top:12px"><button class="btn" data-act="apply" data-id="' + r.id + '">' + (r.ops ? 'Apply to schedule' : 'Create task') + '</button>' +
       '<button class="btn sec" data-act="dismiss" data-id="' + r.id + '">Dismiss</button></div>';
@@ -485,13 +503,13 @@ function plannerModal() {
     const c = Model.cont(m.cid), st = Model.status(c, parseIso(m.date)), sim = Model.simulate(c).find(x => x.date === m.date);
     const mr = Model.missRate(c.loc, parseIso(m.date).getDay());
     const amount = Model.amounts[m.cid + '|' + m.date] || 1;
-    body = close + '<h3>' + Model.contLabel(c) + '</h3><p>' + fmtDate(m.date) + ' · status <b>' + st + '</b>' + (amount > 1 ? ' · <b>' + amount + ' containers</b>' : '') +
+    body = close + '<h3>' + Model.contLabel(c) + '</h3><p>' + fmtDate(m.date) + ' · Status: <b>' + cap(st) + '</b>' + (amount > 1 ? ' · <b>' + amount + ' containers</b>' : '') +
       (sim ? ' · forecast fill ~<b>' + Math.round(Math.min(sim.fill, 100)) + '%</b>' : '') +
       '<br>Missed on this weekday historically: <b>' + pct(mr.rate) + '</b> (' + mr.n + ' pickups)</p>' + chartSvg(c, false) +
       (st === 'cancelled'
         ? '<button class="btn" data-act="restore" data-cid="' + m.cid + '" data-date="' + m.date + '">Restore pickup</button>'
         : '<div class="row"><button class="btn danger" data-act="cancelpk" data-cid="' + m.cid + '" data-date="' + m.date + '">Cancel pickup</button>' +
-          '<span class="small">or move to</span><input type="date" id="moveDate" min="' + iso(Model.today) + '" value="' + iso(addDays(parseIso(m.date), 1)) + '">' +
+          '<span class="small">Or move to</span><input type="date" id="moveDate" min="' + iso(Model.today) + '" value="' + iso(addDays(parseIso(m.date), 1)) + '">' +
           '<button class="btn sec" data-act="movepk" data-cid="' + m.cid + '" data-date="' + m.date + '">Move</button></div>');
   } else if (m.kind === 'day') {
     const cs = plannerContainers();
@@ -511,13 +529,23 @@ function render() {
   document.body.dataset.tab = ui.tab;
   $('#nav').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === ui.tab));
   $('#view').innerHTML = { report: viewOverview, planner: viewPlanner }[ui.tab]() + simulator() + (ui.tab === 'planner' ? '' : notebook());
-  if (ui.scrollAdd) {
-    ui.scrollAdd = false;
-    const el = document.querySelector('.addform');
-    if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }
+  placeAddPop();
+  Assistant.navBadge();
   Model.save();
 }
+
+function moveTip(e) {
+  const el = e.target.closest ? e.target.closest('[data-tt]') : null;
+  if (!el) { tipBox.style.display = 'none'; tipBox._el = null; return; }
+  if (tipBox._el !== el) { tipBox.innerHTML = el.dataset.tt; tipBox._el = el; }
+  tipBox.style.display = 'block';
+  const w = tipBox.offsetWidth, h = tipBox.offsetHeight;
+  let x = e.clientX + 14, y = e.clientY + 14;
+  if (x + w > innerWidth - 8) x = e.clientX - w - 14;
+  if (y + h > innerHeight - 8) y = e.clientY - h - 14;
+  tipBox.style.left = Math.max(8, x) + 'px'; tipBox.style.top = Math.max(8, y) + 'px';
+}
+function hideTip() { tipBox.style.display = 'none'; tipBox._el = null; }
 
 function toggleIn(arr, v, on) {
   const i = arr.indexOf(v);
@@ -528,6 +556,7 @@ function toggleIn(arr, v, on) {
 function init() {
   Model.load();
   Model.init();
+  Assistant.init();
   if (Model.scenario !== 'normal') { const r = baseRange(); ui.from = r.from; ui.to = r.to; }
   $('#nav').onclick = e => { const b = e.target.closest('button'); if (b) { ui.tab = b.dataset.tab; ui.filterOpen = false; ui.modal = null; render(); } };
 
@@ -541,7 +570,7 @@ function init() {
     if (act === 'closemodal') { if (e.target !== b && !d.x) return; ui.modal = null; }
     else if (act === 'reset') {
       Model.reset(); Model.scenario = 'normal';
-      ui.modal = null; ui.loc = ''; ui.fLocs = []; ui.fStreams = []; ui.filterOpen = false; ui.month = null; ui.simOpen = false; ui.noteOpen = false; ui.from = defFrom(); ui.to = defTo(); resetAdd();
+      ui.modal = null; ui.loc = ''; ui.fLocs = []; ui.fStreams = []; ui.filterOpen = false; ui.month = null; ui.simOpen = false; ui.noteOpen = false; ui.from = defFrom(); ui.to = defTo(); resetAdd(); Assistant.reset();
     } else if (act === 'apply' || act === 'dismiss') {
       const r = findRec(d.id);
       if (r) { act === 'apply' ? Model.apply(r) : Model.dismiss(r); if (act === 'apply' && !r.ops) ui.noteOpen = true; }
@@ -551,11 +580,13 @@ function init() {
     } else if (act === 'selpk') ui.modal = { kind: 'pk', cid: d.cid, date: d.date };
     else if (act === 'selghost') ui.modal = { kind: 'ghost', id: d.id };
     else if (act === 'selday') ui.modal = { kind: 'day', date: d.date };
-    else if (act === 'toggleadd') { ui.add.open = !ui.add.open; ui.add.msg = ''; ui.filterOpen = false; ui.scrollAdd = ui.add.open; }
-    else if (act === 'setadd') { ui.add.open = true; ui.add.date = d.date; ui.add.msg = ''; ui.modal = null; ui.scrollAdd = true; }
+    else if (act === 'toggleadd') { ui.add.open = !ui.add.open; ui.add.msg = ''; ui.add.anchor = null; ui.filterOpen = false; }
+    else if (act === 'setadd') { ui.add.open = true; ui.add.date = d.date; ui.add.anchor = d.date; ui.add.msg = ''; ui.modal = null; ui.filterOpen = false; }
+    else if (act === 'closeadd') { resetAdd(); }
+    else if (act === 'rmchart') Assistant.removeChart(d.id);
     else if (act === 'notiftoggle') { ui.notifHidden = !ui.notifHidden; if (!ui.notifHidden && isMobile()) ui.simOpen = false; }
     else if (act === 'cleardates') { const r = baseRange(); ui.from = r.from; ui.to = r.to; }
-    else if (act === 'simtoggle') { ui.simOpen = !ui.simOpen; if (ui.simOpen && isMobile()) { ui.notifHidden = true; ui.noteOpen = false; } }
+    else if (act === 'simtoggle') { ui.simOpen = !ui.simOpen; if (ui.simOpen) Assistant.close(); if (ui.simOpen && isMobile()) { ui.notifHidden = true; ui.noteOpen = false; } }
     else if (act === 'notetoggle') { ui.noteOpen = !ui.noteOpen; if (ui.noteOpen && isMobile()) ui.simOpen = false; }
     else if (act === 'notifmore') ui.notifAll = !ui.notifAll;
     else if (act === 'scenario') setScenario(d.val);
@@ -588,22 +619,12 @@ function init() {
     render();
   });
 
-  $('#view').addEventListener('mousemove', e => {
-    const el = e.target.closest ? e.target.closest('[data-tt]') : null;
-    if (!el) { tipBox.style.display = 'none'; tipBox._el = null; return; }
-    if (tipBox._el !== el) { tipBox.innerHTML = el.dataset.tt; tipBox._el = el; }
-    tipBox.style.display = 'block';
-    const w = tipBox.offsetWidth, h = tipBox.offsetHeight;
-    let x = e.clientX + 14, y = e.clientY + 14;
-    if (x + w > innerWidth - 8) x = e.clientX - w - 14;
-    if (y + h > innerHeight - 8) y = e.clientY - h - 14;
-    tipBox.style.left = Math.max(8, x) + 'px'; tipBox.style.top = Math.max(8, y) + 'px';
-  });
-  $('#view').addEventListener('mouseleave', () => { tipBox.style.display = 'none'; tipBox._el = null; });
+  $('#view').addEventListener('mousemove', moveTip);
+  $('#view').addEventListener('mouseleave', hideTip);
 
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
-    if (ui.modal) ui.modal = null; else if (ui.filterOpen) ui.filterOpen = false; else if (ui.simOpen) ui.simOpen = false; else if (ui.noteOpen) ui.noteOpen = false; else return;
+    if (ui.modal) ui.modal = null; else if (ui.add.open) resetAdd(); else if (ui.filterOpen) ui.filterOpen = false; else if (Assistant.isOpen()) { Assistant.close(); return; } else if (ui.simOpen) ui.simOpen = false; else if (ui.noteOpen) ui.noteOpen = false; else return;
     render();
   });
 

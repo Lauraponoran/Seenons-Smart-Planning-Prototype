@@ -40,6 +40,16 @@ Transparent rules, so each suggestion is explainable:
 
 Tuning values live in `data.js` (`ASSUMPTIONS`). To use a real model or an LLM, replace `Model.recommendations()` or add an explanation layer on top of its output (call your own backend; never put an API key in this static site).
 
+## AI assistant (`assistant.js`)
+
+A chat icon sits bottom-right (the holiday simulator moved left of it). Open it, and use the expand button to maximize. Three suggested functions:
+
+1. **Quick answers**: FAQ about the planner, forecast and report.
+2. **Build a chart**: describe a view in plain language ("Weight by location and waste stream", "Compare weight with temperature", "Missed-pickup rate by weekday, last 8 weeks"). The assistant recombines the pickup data (measure x dimension x filters x chart type), adds the chart to **Report > Your charts**, and can refine it ("make it a line chart", "only Utrecht", "split by waste stream").
+3. **Bring in other data**: upload a CSV (date column + number columns, optional category column) with the paperclip, or ask it to find open data. It lines the data up with your pickups on a second axis and reports the correlation.
+
+**Prototype limits:** the language understanding is a keyword parser, and the "find data online" sources (temperature, rainfall, footfall) are simulated and labelled as such. A static site cannot hold an API key. To use a real LLM and real web search, set `window.SMARTPLAN_CHAT_API = 'https://your-backend/chat'` before `assistant.js`; it receives `{ message, history, schema }` and returns `{ reply, chart? }`. Charts and uploads are kept in `localStorage`; **Reset demo** clears them.
+
 ## Run locally
 
 Open `index.html` in a browser, or:
@@ -51,7 +61,7 @@ python3 -m http.server 8000   # then visit http://localhost:8000
 ## Host on GitHub Pages
 
 1. Create a repo and push these files to the root of the `main` branch:
-   `index.html, styles.css, data.js, engine.js, app.js, README.md, .nojekyll`
+   `index.html, styles.css, data.js, engine.js, assistant.js, app.js, README.md, .nojekyll`
 2. In GitHub: **Settings → Pages → Build and deployment → Deploy from a branch → `main` / `(root)` → Save**.
 3. After a minute the site is live at `https://<your-username>.github.io/<repo-name>/`.
 

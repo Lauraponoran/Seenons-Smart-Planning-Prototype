@@ -309,17 +309,17 @@ function viewOverview() {
     kpi(kg(k.co2), 'CO₂ saved', false, 'CO₂ saved by recycling, using demo factors per stream.') +
     kpi(pct(k.missRate), 'Missed pickups', k.missRate > 0.06, k.missed + ' of ' + k.pickups + ' scheduled pickups were missed in this period.') +
     kpi(k.full, 'Full at pickup', k.full > 0, 'Pickups where the container was already at least ' + ASSUMPTIONS.alertFill + '% full, so it was at risk of overflowing.') + '</div>' +
-    Assistant.reportSection() +
-    '<h3 class="sec-h">Waste details <span class="tag">Seenons today</span></h3>' +
+    '<h3 class="sec-h">Waste details <span class="tag">Seenons Today</span></h3>' +
     '<div class="grid cols2"><div class="card"><h3>Weight (kg) by stream and location</h3><p class="small cap">Hover a bar for amounts.</p>' + chartStreamLoc(bd, locs) + '</div>' +
     '<div class="card"><h3>Weight (kg) over time</h3>' + caption(bd.buckets) + chartWeekStack(bd) + '</div></div>' +
     '<div class="grid cols2"><div class="card"><h3>Source separation rate vs resource saved rate</h3>' + caption(bd.buckets) + chartRates(bd) + '</div>' +
     '<div class="card"><h3>Missed-pickup rate by weekday <span class="tag new">New · service events</span></h3><p class="small cap">Hover a cell for the number of missed pickups.</p>' + heat + '</div></div>' +
-    '<h3 class="sec-h">Smart data <span class="tag new">New · what we recommend collecting</span></h3>' +
-    '<div class="grid cols2"><div class="card"><h3>Container fill level: now and 14-day forecast <span class="tag new">New · IoT sensors</span></h3><p class="small cap">Live sensor readings (simulated). The faded bar is the forecast peak before the next pickup; red means over ' + ASSUMPTIONS.alertFill + '%.</p>' + chartFill(containersInView()) + '</div>' +
-    '<div class="card"><h3>Recyclables found in residual <span class="tag new">New · composition scan</span></h3><p class="small cap">Share of each residual container that could have been separated, from the last (simulated) scan.</p>' + chartComposition(containersInView()) + '</div></div>' +
+    '<h3 class="sec-h">Smart data <span class="tag new">New - Requires Additional Sensors</span></h3>' +
+    '<div class="grid cols2"><div class="card"><h3>Container fill level: now and 14-day forecast <span class="tag new">Needs IoT Sensors</span></h3><p class="small cap">Live sensor readings (simulated). The faded bar is the forecast peak before the next pickup; red means over ' + ASSUMPTIONS.alertFill + '%.</p>' + chartFill(containersInView()) + '</div>' +
+    '<div class="card"><h3>Recyclables found in residual <span class="tag new">Needs Composition Scan</span></h3><p class="small cap">Share of each residual container that could have been separated, from the last (simulated) scan.</p>' + chartComposition(containersInView()) + '</div></div>' +
     '<h3 class="sec-h">Recommended actions <span class="small">(' + acts.length + ')</span></h3>' +
-    (acts.map(taskCard).join('') || '<p class="sub">No open recommendations for this selection.</p>') + '</div>';
+    (acts.map(taskCard).join('') || '<p class="sub">No open recommendations for this selection.</p>') +
+    Assistant.reportSection() + '</div>';
 }
 
 /* ----- planner ----- */
@@ -484,7 +484,7 @@ function notifications() {
   return '<div class="notifs' + (ui.notifHidden ? ' hidden' : '') + '" aria-live="polite">' +
     '<button class="notif-tab" data-act="notiftoggle" aria-expanded="' + !ui.notifHidden + '" aria-label="' + (ui.notifHidden ? 'Show' : 'Hide') + ' AI suggestions" title="' + (ui.notifHidden ? 'Show' : 'Hide') + ' AI suggestions">' +
     '<span class="nt-lbl">Suggestions</span><span class="nt-ch">' + (ui.notifHidden ? '‹' : '›') + '</span><span class="notif-n">' + recs.length + '</span></button>' +
-    '<div class="notif-stack">' + toasts + (foot ? '<div class="notif-foot">' + foot + '</div>' : '') + '</div></div>';
+    '<div class="notif-stack"><div class="notif-head"><b>AI suggestions</b><button class="notif-x" data-act="notiftoggle" aria-label="Close suggestions">×</button></div>' + toasts + (foot ? '<div class="notif-foot">' + foot + '</div>' : '') + '</div></div>';
 }
 
 function plannerModal() {

@@ -731,7 +731,7 @@ const Assistant = (() => {
       return '<div class="card cchart"><div class="cc-head"><h3>' + esc(res.title) + '</h3><button class="cc-x" data-act="rmchart" data-id="' + esc(c.id) + '" aria-label="Remove this chart" title="Remove this chart">×</button></div>' +
         '<p class="small cap">' + esc(res.caption) + '</p>' + chartBody(res) + '</div>';
     }).join('');
-    return '<h3 class="sec-h" id="my-charts">Your charts <span class="tag new">Built with the assistant</span></h3><div class="grid cols2">' + cards + '</div>';
+    return '<h3 class="sec-h" id="my-charts">Your charts <span class="tag new">Built with the Assistant</span></h3><div class="grid cols2">' + cards + '</div>';
   }
   function reset() { st.charts = []; st.uploads = []; st.msgs = []; st.last = null; st.busy = false; try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ } draw(); navBadge(); }
   function init() { load(); mount(); draw(); navBadge(); }

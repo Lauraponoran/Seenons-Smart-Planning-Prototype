@@ -224,16 +224,25 @@ svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
 /* Report page on phones: compact summary stats + recommendations that fold open/closed.
    Stats: two per row with tighter cards; the odd seventh one spans the full row instead of leaving a hole. */
 @media (max-width: 600px) {
-  /* Stats become one swipeable row (scroll-snap), bleeding to the screen edges so the next card peeks in as a hint to swipe */
-  .kpis { display: flex; gap: 8px; overflow-x: auto; margin: 0 -14px 12px; padding: 0 14px 4px; scroll-snap-type: x proximity; scroll-padding-left: 14px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-  .kpis::-webkit-scrollbar { display: none; }
-  .kpis .kpi { flex: 0 0 auto; min-width: 118px; display: flex; flex-direction: column-reverse; gap: 1px; padding: 10px 14px; scroll-snap-align: start; }
-  .kpi .v { font-size: 20px; line-height: 1.25; white-space: nowrap; }
+  /* Stats become one swipeable row (scroll-snap). Smaller cards so several show at once, a soft shadow on whichever edge still has
+     more to scroll to (the 'local' cover gradients hide it once you reach that end), and a thin scrollbar where the browser draws one. */
+  .kpis { display: flex; gap: 8px; overflow-x: auto; margin: 0 -14px 12px; padding: 0 14px 10px; scroll-snap-type: x proximity; scroll-padding-left: 14px; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #C3CED4 transparent;
+    background:
+      linear-gradient(to right, var(--bg), var(--bg)) left center / 22px calc(100% - 10px) no-repeat local,
+      linear-gradient(to left, var(--bg), var(--bg)) right center / 22px calc(100% - 10px) no-repeat local,
+      linear-gradient(to right, rgba(20, 45, 58, .20), transparent) left center / 18px calc(100% - 10px) no-repeat scroll,
+      linear-gradient(to left, rgba(20, 45, 58, .20), transparent) right center / 18px calc(100% - 10px) no-repeat scroll; }
+  .kpis::-webkit-scrollbar { height: 4px; }
+  .kpis::-webkit-scrollbar-thumb { background: #C3CED4; border-radius: 4px; }
+  .kpis .kpi { flex: 0 0 auto; min-width: 100px; display: flex; flex-direction: column-reverse; gap: 1px; padding: 8px 12px; scroll-snap-align: start; }
+  .kpi .v { font-size: 18px; line-height: 1.25; white-space: nowrap; }
   .kpi .l { font-size: 11px; line-height: 1.25; white-space: nowrap; }
   /* Recommendations: title row + caret; reason and impact chips only when expanded */
   .rec { gap: 8px; margin-bottom: 10px; padding: 12px 14px; }
   .rec h4 { margin: 4px 0 2px; }
-  .rec-caret { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 48px; height: 36px; margin: -4px -8px 0 0; border: 0; border-radius: 6px; background: none; color: #4A5B64; cursor: pointer; transition: transform .15s; }
+  .rec-caret { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 36px; height: 30px; margin: 0 2px 0 0; border: 0; border-radius: 6px; background: none; color: #4A5B64; cursor: pointer; transition: transform .15s; }
+  .rec-top { align-items: center; }
+  .rec-caret svg { width: 22px; height: 13px; }
   .rec-caret:hover { background: #EEF1F4; color: var(--ink); }
   .rec.open .rec-caret { transform: rotate(180deg); }
   .rec-more { display: none; }

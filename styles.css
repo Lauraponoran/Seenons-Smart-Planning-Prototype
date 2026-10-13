@@ -224,12 +224,17 @@ svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
 /* Report page on phones: compact summary stats + recommendations that fold open/closed.
    Stats: two per row with tighter cards; the odd seventh one spans the full row instead of leaving a hole. */
 @media (max-width: 600px) {
-  /* Stats become one swipeable row (scroll-snap) that bleeds to the screen edges. Each card is sized so two and a half fit: the half card
-     cut off at the right edge (and at the left once you've scrolled) shows there is more, plus a thin scrollbar where the browser draws one. */
-  .kpis { display: flex; gap: 8px; overflow-x: auto; margin: 0 -14px 12px; padding: 0 14px 10px; scroll-snap-type: x proximity; scroll-padding-left: 14px; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #C3CED4 transparent; }
+  /* Stats become one swipeable row (scroll-snap), kept inside the page's own width (no negative margins, no vw units: those made it
+     poke out of the page). Cards are sized as a share of the row so two and a half fit; .kpis-wrap carries a fade on the right edge
+     that watchKpiScroll() in app.js hides once the end is reached. */
+  main, #view { min-width: 0; }
+  .kpis-wrap { position: relative; margin-bottom: 12px; max-width: 100%; }
+  .kpis-wrap::after { content: ''; position: absolute; top: 0; right: 0; bottom: 10px; width: 56px; pointer-events: none; border-radius: 0 8px 8px 0; background: linear-gradient(to left, var(--bg) 8%, rgba(237, 240, 244, 0)); transition: opacity .2s; }
+  .kpis-wrap.at-end::after { opacity: 0; }
+  .kpis { display: flex; gap: 8px; width: 100%; max-width: 100%; min-width: 0; overflow-x: auto; margin: 0; padding: 0 0 10px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #C3CED4 transparent; }
   .kpis::-webkit-scrollbar { height: 4px; }
   .kpis::-webkit-scrollbar-thumb { background: #C3CED4; border-radius: 4px; }
-  .kpis .kpi { flex: 0 0 max(100px, calc((100vw - 22px) / 2.5)); display: flex; flex-direction: column-reverse; gap: 1px; padding: 8px 12px; scroll-snap-align: start; }
+  .kpis .kpi { flex: 0 0 max(100px, calc(40% - 6px)); display: flex; flex-direction: column-reverse; gap: 1px; padding: 8px 12px; scroll-snap-align: start; }
   .kpi .v { font-size: 18px; line-height: 1.25; white-space: nowrap; }
   .kpi .l { font-size: 11px; line-height: 1.25; white-space: nowrap; }
   /* Recommendations: title row + caret; reason and impact chips only when expanded */

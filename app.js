@@ -307,12 +307,12 @@ function viewOverview() {
   return pageHead('Report', 'What Seenons clients see today, plus recommended next steps.') +
     '<div class="report-panel">' + toolbar(true) +
     scenarioBanner() + '<h3 class="sec-h">Summary statistics</h3>' +
-    '<div class="grid kpis">' + kpi(k.orders, 'Orders', false, 'Total orders picked up in this period.') + kpi(kg(k.weight), 'Weight', false, 'Total weight collected in this period.') +
+    '<div class="kpis-wrap"><div class="grid kpis">' + kpi(k.orders, 'Orders', false, 'Total orders picked up in this period.') + kpi(kg(k.weight), 'Weight', false, 'Total weight collected in this period.') +
     kpi(pct(k.separation), 'Separation rate', false, 'Source separation rate: share of the weight that was not residual.') +
     kpi(pct(k.resource), 'Resource saved', false, 'Resource saved rate: share of the weight that was recycled or recovered (demo factors).') +
     kpi(kg(k.co2), 'CO₂ saved', false, 'CO₂ saved by recycling, using demo factors per stream.') +
     kpi(pct(k.missRate), 'Missed pickups', k.missRate > 0.06, k.missed + ' of ' + k.pickups + ' scheduled pickups were missed in this period.') +
-    kpi(k.full, 'Full at pickup', k.full > 0, 'Pickups where the container was already at least ' + ASSUMPTIONS.alertFill + '% full, so it was at risk of overflowing.') + '</div>' +
+    kpi(k.full, 'Full at pickup', k.full > 0, 'Pickups where the container was already at least ' + ASSUMPTIONS.alertFill + '% full, so it was at risk of overflowing.') + '</div></div>' +
     '<h3 class="sec-h">Waste details <span class="tag">Seenons Today</span></h3>' +
     '<div class="grid cols2"><div class="card"><h3>Weight (kg) by stream and location</h3><p class="small cap">Hover a bar for amounts.</p>' + chartStreamLoc(bd, locs) + '</div>' +
     '<div class="card"><h3>Weight (kg) over time</h3>' + caption(bd.buckets) + chartWeekStack(bd) + '</div></div>' +
@@ -404,6 +404,15 @@ function addPopup() {
     '<div class="af-actions"><button class="btn" data-act="addpk">Add</button><button class="btn sec" data-act="closeadd">Cancel</button></div></div>';
 }
 /* put the popup over the day it was opened from (desktop / tablet); on phones CSS centres it */
+/* Phones: the stats row scrolls sideways; a fade on its right edge (css .kpis-wrap::after) hints at that and goes away once the end is reached.
+   The row is rebuilt on every render(), so a fresh listener each time is fine. */
+function watchKpiScroll() {
+  const row = document.querySelector('.kpis'); if (!row) return;
+  const wrap = row.parentElement;
+  const upd = () => wrap.classList.toggle('at-end', row.scrollLeft + row.clientWidth >= row.scrollWidth - 4);
+  row.addEventListener('scroll', upd, { passive: true }); upd();
+}
+
 function placeAddPop() {
   const pop = document.querySelector('.addpop.anch'); if (!pop) return;
   if (window.matchMedia('(max-width: 600px)').matches) { pop.style.left = pop.style.top = ''; return; }
@@ -536,6 +545,7 @@ function render() {
   $('#nav').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === ui.tab));
   $('#view').innerHTML = { report: viewOverview, planner: viewPlanner }[ui.tab]() + simulator() + (ui.tab === 'planner' ? '' : notebook());
   placeAddPop();
+  watchKpiScroll();
   Assistant.navBadge();
   Model.save();
 }

@@ -267,7 +267,7 @@ function taskCard(r) {
   const open = !!ui.recOpen[r.id];
   /* On phones the reason + impact chips fold away behind the caret (see .rec-more in styles.css); on wider screens the caret is hidden and everything is shown. */
   return '<div class="card rec' + (open ? ' open' : '') + '"><div class="body"><span class="badge ' + r.severity + '">' + cap(r.severity) + '</span> <span class="badge">' + typeLabel[r.type] + '</span>' +
-    '<div class="rec-top"><h4>' + r.title + '</h4><button class="rec-caret" data-act="rectoggle" data-id="' + r.id + '" aria-expanded="' + open + '" aria-label="' + (open ? 'Hide' : 'Show') + ' details">▾</button></div>' +
+    '<div class="rec-top"><h4>' + r.title + '</h4><button class="rec-caret" data-act="rectoggle" data-id="' + r.id + '" aria-expanded="' + open + '" aria-label="' + (open ? 'Hide' : 'Show') + ' details"><svg viewBox="0 0 28 16" width="28" height="16" aria-hidden="true"><path d="M3 3l11 10L25 3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>' +
     '<div class="rec-more"><p>' + r.reason + '</p><div>' + impactChips(r) + '</div></div></div>' +
     '<div class="acts"><button class="btn" data-act="apply" data-id="' + r.id + '">Create task</button><button class="btn sec" data-act="dismiss" data-id="' + r.id + '">Dismiss</button></div></div>';
 }

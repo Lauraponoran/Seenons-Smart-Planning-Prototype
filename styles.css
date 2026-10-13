@@ -224,17 +224,12 @@ svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
 /* Report page on phones: compact summary stats + recommendations that fold open/closed.
    Stats: two per row with tighter cards; the odd seventh one spans the full row instead of leaving a hole. */
 @media (max-width: 600px) {
-  /* Stats become one swipeable row (scroll-snap). Smaller cards so several show at once, a soft shadow on whichever edge still has
-     more to scroll to (the 'local' cover gradients hide it once you reach that end), and a thin scrollbar where the browser draws one. */
-  .kpis { display: flex; gap: 8px; overflow-x: auto; margin: 0 -14px 12px; padding: 0 14px 10px; scroll-snap-type: x proximity; scroll-padding-left: 14px; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #C3CED4 transparent;
-    background:
-      linear-gradient(to right, var(--bg), var(--bg)) left center / 22px calc(100% - 10px) no-repeat local,
-      linear-gradient(to left, var(--bg), var(--bg)) right center / 22px calc(100% - 10px) no-repeat local,
-      linear-gradient(to right, rgba(20, 45, 58, .20), transparent) left center / 18px calc(100% - 10px) no-repeat scroll,
-      linear-gradient(to left, rgba(20, 45, 58, .20), transparent) right center / 18px calc(100% - 10px) no-repeat scroll; }
+  /* Stats become one swipeable row (scroll-snap) that bleeds to the screen edges. Each card is sized so two and a half fit: the half card
+     cut off at the right edge (and at the left once you've scrolled) shows there is more, plus a thin scrollbar where the browser draws one. */
+  .kpis { display: flex; gap: 8px; overflow-x: auto; margin: 0 -14px 12px; padding: 0 14px 10px; scroll-snap-type: x proximity; scroll-padding-left: 14px; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #C3CED4 transparent; }
   .kpis::-webkit-scrollbar { height: 4px; }
   .kpis::-webkit-scrollbar-thumb { background: #C3CED4; border-radius: 4px; }
-  .kpis .kpi { flex: 0 0 auto; min-width: 100px; display: flex; flex-direction: column-reverse; gap: 1px; padding: 8px 12px; scroll-snap-align: start; }
+  .kpis .kpi { flex: 0 0 max(100px, calc((100vw - 22px) / 2.5)); display: flex; flex-direction: column-reverse; gap: 1px; padding: 8px 12px; scroll-snap-align: start; }
   .kpi .v { font-size: 18px; line-height: 1.25; white-space: nowrap; }
   .kpi .l { font-size: 11px; line-height: 1.25; white-space: nowrap; }
   /* Recommendations: title row + caret; reason and impact chips only when expanded */
@@ -249,6 +244,10 @@ svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
   .rec.open .rec-more { display: block; }
   .rec .acts { width: 100%; }
   .rec .acts .btn { flex: 1; }
+  /* Add-pickup dialog opened from a day's +: on phones placeAddPop() doesn't position it, so it must keep the centring transform
+     (.addpop.anch sets transform: none for the desktop anchored version, which pushed it off screen) and scroll if it is taller than the screen */
+  .addpop.anch { transform: translate(-50%, -50%); }
+  .addpop { max-height: calc(100vh - 24px); overflow-y: auto; }
 }
 @media (prefers-reduced-motion: reduce) { .rec-caret { transition: none; } }
 .t-abbr { display: none; }

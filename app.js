@@ -5,6 +5,7 @@ const ui = {
   tab: 'planner', loc: '', cid: null, modal: null, month: null,
   fLocs: [], fStreams: [], filterOpen: false,           // planner calendar filters (empty = show all)
   add: { open: false, loc: null, stream: null, amount: 1, date: null, msg: '', anchor: null },
+  recOpen: {},                                          // phones: which recommendation cards on the Report page are expanded (by rec id)
   noteOpen: false, notifAll: false, notifHidden: isMobile(), simOpen: false, from: iso(addDays(Model.today, -(HISTORY_DAYS - 1))), to: iso(Model.today)
 };
 const $ = s => document.querySelector(s);
@@ -263,8 +264,11 @@ function chartRates(bd) {
 
 /* recommended action (composition tasks) and the list of tasks created from them */
 function taskCard(r) {
-  return '<div class="card rec"><div class="body"><span class="badge ' + r.severity + '">' + cap(r.severity) + '</span> <span class="badge">' + typeLabel[r.type] + '</span>' +
-    '<h4>' + r.title + '</h4><p>' + r.reason + '</p><div>' + impactChips(r) + '</div></div>' +
+  const open = !!ui.recOpen[r.id];
+  /* On phones the reason + impact chips fold away behind the caret (see .rec-more in styles.css); on wider screens the caret is hidden and everything is shown. */
+  return '<div class="card rec' + (open ? ' open' : '') + '"><div class="body"><span class="badge ' + r.severity + '">' + cap(r.severity) + '</span> <span class="badge">' + typeLabel[r.type] + '</span>' +
+    '<div class="rec-top"><h4>' + r.title + '</h4><button class="rec-caret" data-act="rectoggle" data-id="' + r.id + '" aria-expanded="' + open + '" aria-label="' + (open ? 'Hide' : 'Show') + ' details">▾</button></div>' +
+    '<div class="rec-more"><p>' + r.reason + '</p><div>' + impactChips(r) + '</div></div></div>' +
     '<div class="acts"><button class="btn" data-act="apply" data-id="' + r.id + '">Create task</button><button class="btn sec" data-act="dismiss" data-id="' + r.id + '">Dismiss</button></div></div>';
 }
 /* task list: button top-right (Report page) that opens a small panel, styled like the other panels */
@@ -591,6 +595,7 @@ function init() {
     else if (act === 'simtoggle') { ui.simOpen = !ui.simOpen; if (ui.simOpen) Assistant.close(); if (ui.simOpen && isMobile()) { ui.notifHidden = true; ui.noteOpen = false; } }
     else if (act === 'notetoggle') { ui.noteOpen = !ui.noteOpen; if (ui.noteOpen && isMobile()) ui.simOpen = false; }
     else if (act === 'notifmore') ui.notifAll = !ui.notifAll;
+    else if (act === 'rectoggle') ui.recOpen[d.id] = !ui.recOpen[d.id];
     else if (act === 'scenario') setScenario(d.val);
     else if (act === 'togglefilter') ui.filterOpen = !ui.filterOpen;
     else if (act === 'clearfilter') { ui.fLocs = []; ui.fStreams = []; }

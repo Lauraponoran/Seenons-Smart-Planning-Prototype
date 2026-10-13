@@ -73,6 +73,9 @@ td.heat { text-align: center; font-weight: 600; border-radius: 4px; }
 .rec .body { flex: 1 1 380px; }
 .rec .acts { display: flex; gap: 8px; align-items: start; }
 .rec h4 { margin: 6px 0 6px; font-size: 15px; color: var(--ink); }
+.rec-top { display: flex; align-items: flex-start; gap: 8px; }
+.rec-top h4 { flex: 1; min-width: 0; }
+.rec-caret { display: none; }                      /* phones only, see the 600px block below */
 .rec p { margin: 0 0 6px; color: #4A5B64; }
 .log li { margin: 4px 0; color: #4A5B64; }
 input[type=range] { width: 160px; accent-color: var(--teal); }
@@ -217,6 +220,27 @@ svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
   .popover { min-width: 0; width: min(92vw, 420px); }
 }
 @media (max-width: 600px) { .ai { display: none; } .cal-sep { display: none; } .tip::after { width: 220px; } }
+
+/* Report page on phones: compact summary stats + recommendations that fold open/closed.
+   Stats: two per row with tighter cards; the odd seventh one spans the full row instead of leaving a hole. */
+@media (max-width: 600px) {
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+  .kpis .kpi { padding: 9px 12px; }
+  .kpis .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .kpi .v { font-size: 19px; line-height: 1.25; }
+  .kpi .l { font-size: 11px; line-height: 1.25; }
+  /* Recommendations: title row + caret; reason and impact chips only when expanded */
+  .rec { gap: 8px; margin-bottom: 10px; padding: 12px 14px; }
+  .rec h4 { margin: 4px 0 2px; }
+  .rec-caret { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 32px; height: 32px; margin: -2px -6px 0 0; border: 0; border-radius: 6px; background: none; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; transition: transform .15s; }
+  .rec-caret:hover { background: #EEF1F4; color: var(--ink); }
+  .rec.open .rec-caret { transform: rotate(180deg); }
+  .rec-more { display: none; }
+  .rec.open .rec-more { display: block; }
+  .rec .acts { width: 100%; }
+  .rec .acts .btn { flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .rec-caret { transition: none; } }
 .t-abbr { display: none; }
 
 /* ---------- agent notifications (planner, top-right corner) ---------- */
